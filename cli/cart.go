@@ -24,9 +24,12 @@ func resolveCart(g *Globals) (*vtex.Client, *vtex.OrderForm, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	of, err := client.GetOrderForm(g.OrderFormID(client))
+	of, migrated, err := client.UsableCart(g.OrderFormID(client))
 	if err != nil {
 		return nil, nil, err
+	}
+	if migrated {
+		outfmt.Hint("Cart was created before your account had a delivery address; moved %d item(s) to a fresh one.", len(of.Items))
 	}
 	g.PersistOrderFormID(of.OrderFormID)
 	return client, of, nil

@@ -164,3 +164,86 @@ func TestOrderFormItemPricesAreCentavos(t *testing.T) {
 		t.Errorf("Seller = %q", of.Items[0].Seller)
 	}
 }
+
+func TestUsableCartMigratesItemsOffAStaleForm(t *testing.T) {
+	// A cart minted before the account had an address can never check out.
+	const stale = `{"orderFormId":"STALE","loggedIn":true,
+		"items":[{"id":"42","quantity":2,"seller":"1"},{"id":"219","quantity":1,"seller":"1"}],
+		"totalizers":[],"shippingData":{"availableAddresses":[]}}`
+	const freshEmpty = `{"orderFormId":"FRESH","loggedIn":true,"items":[],
+		"totalizers":[],"shippingData":{"availableAddresses":[{"addressId":"a1"}]}}`
+
+	var added []map[string]any
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/FRESH/items"):
+			var body struct {
+				OrderItems []map[string]any `json:"orderItems"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			added = append(added, body.OrderItems...)
+			_, _ = w.Write([]byte(freshEmpty))
+		case strings.HasSuffix(r.URL.Path, "/orderForm/STALE"):
+			_, _ = w.Write([]byte(stale))
+		default: // GET /orderForm with no id mints a new cart
+			_, _ = w.Write([]byte(freshEmpty))
+		}
+	})
+
+	of, migrated, err := c.UsableCart("STALE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !migrated {
+		t.Fatal("a cart with no address must be replaced, not reused")
+	}
+	if of.OrderFormID != "FRESH" {
+		t.Errorf("orderFormId = %q, want FRESH", of.OrderFormID)
+	}
+	// Nothing the user added may be silently dropped.
+	if len(added) != 2 {
+		t.Fatalf("migrated %d items, want 2", len(added))
+	}
+	if added[0]["id"] != "42" || added[0]["quantity"] != float64(2) || added[0]["seller"] != "1" {
+		t.Errorf("first migrated item = %+v", added[0])
+	}
+}
+
+func TestUsableCartKeepsAWorkingCart(t *testing.T) {
+	const good = `{"orderFormId":"GOOD","loggedIn":true,"items":[],"totalizers":[],
+		"shippingData":{"availableAddresses":[{"addressId":"a1"}]}}`
+	var mintedFresh bool
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/checkout/pub/orderForm" {
+			mintedFresh = true
+		}
+		_, _ = w.Write([]byte(good))
+	})
+	of, migrated, err := c.UsableCart("GOOD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated || mintedFresh {
+		t.Error("a checkoutable cart must be left alone")
+	}
+	if of.OrderFormID != "GOOD" {
+		t.Errorf("orderFormId = %q", of.OrderFormID)
+	}
+}
+
+func TestUsableCartKeepsStaleFormWhenAccountHasNoAddress(t *testing.T) {
+	// If the account genuinely has no address, a fresh cart is no better,
+	// so don't churn — let checkout fail with the real reason.
+	const noAddr = `{"orderFormId":"X","loggedIn":true,"items":[],"totalizers":[],
+		"shippingData":{"availableAddresses":[]}}`
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(noAddr))
+	})
+	_, migrated, err := c.UsableCart("X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated {
+		t.Error("must not churn carts when the account itself has no address")
+	}
+}
