@@ -10,7 +10,7 @@ import (
 )
 
 type CartCmd struct {
-	Show    CartShowCmd    `cmd:"" default:"1" help:"Show the current cart."`
+	Show    CartShowCmd    `cmd:"" default:"withargs" help:"Show the current cart."`
 	Add     CartAddCmd     `cmd:"" help:"Add a SKU to the cart."`
 	Update  CartUpdateCmd  `cmd:"" help:"Set an item's quantity by index."`
 	Remove  CartRemoveCmd  `cmd:"" help:"Remove an item by index."`

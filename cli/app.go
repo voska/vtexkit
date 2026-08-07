@@ -130,7 +130,7 @@ func (c *ExitCodesCmd) Run(g *Globals) error {
 }
 
 type StoreCmd struct {
-	Info StoreInfoCmd `cmd:"" default:"1" help:"Show the descriptor and probe live capabilities."`
+	Info StoreInfoCmd `cmd:"" default:"withargs" help:"Show the descriptor and probe live capabilities."`
 }
 
 type StoreInfoCmd struct{}

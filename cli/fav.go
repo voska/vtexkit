@@ -4,7 +4,7 @@ import "github.com/voska/vtexkit/cli/errfmt"
 
 // FavCmd is shorthand for operating on the "favorites" list.
 type FavCmd struct {
-	Show   FavShowCmd   `cmd:"" default:"1" help:"Show favorites."`
+	Show   FavShowCmd   `cmd:"" default:"withargs" help:"Show favorites."`
 	Add    FavAddCmd    `cmd:"" help:"Add a SKU to favorites."`
 	Remove FavRemoveCmd `cmd:"" help:"Remove a SKU from favorites."`
 	Order  FavOrderCmd  `cmd:"" help:"Add every favorite to the cart."`

@@ -12,7 +12,7 @@ import (
 
 type CheckoutCmd struct {
 	Payments CheckoutPaymentsCmd `cmd:"" help:"List the payment methods this store accepts."`
-	Run      CheckoutRunCmd      `cmd:"" default:"1" help:"Preview or place an order."`
+	Run      CheckoutRunCmd      `cmd:"" default:"withargs" help:"Preview or place an order."`
 }
 
 type CheckoutPaymentsCmd struct {
