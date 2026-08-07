@@ -8,17 +8,61 @@ import (
 	"github.com/voska/vtexkit/vtex"
 )
 
-// FavCmd shows the store's own wishlist — what the heart icons on the
+// FavCmd manages the store's own wishlist — what the heart icons on the
 // website save.
 //
-// It is deliberately read-only and has no bulk-order subcommand. A wishlist
-// is things the shopper likes, not things they intend to buy right now;
-// "add all of it to the cart" is never what someone means. Curated lists
-// that ARE meant to be ordered wholesale live under `list`.
-type FavCmd struct{}
+// There is deliberately no bulk-order subcommand. A wishlist is things the
+// shopper likes, not things they intend to buy now; "add all of it to the
+// cart" is never what anyone means. Curated lists meant to be ordered
+// wholesale live under `list`.
+type FavCmd struct {
+	Show   FavShowCmd   `cmd:"" default:"withargs" help:"Show the wishlist."`
+	Add    FavAddCmd    `cmd:"" help:"Save a product to the wishlist."`
+	Remove FavRemoveCmd `cmd:"" help:"Remove a product from the wishlist."`
+}
 
-func (c *FavCmd) Run(g *Globals) error {
-	items, name, err := favorites(g)
+// wishlistSession resolves the logged-in shopper for wishlist operations.
+func wishlistSession(g *Globals) (*vtex.Client, string, error) {
+	if !g.Store.Wishlist.CanRead() {
+		return nil, "", errfmt.Config(fmt.Sprintf(
+			"%s has no wishlist support configured", g.Store.Label()))
+	}
+	client, err := g.RequireAuth()
+	if err != nil {
+		return nil, "", err
+	}
+	email, err := client.AuthenticatedUser()
+	if err != nil {
+		return nil, "", err
+	}
+	return client, email, nil
+}
+
+// favorites returns the shopper's saved items and the list's name.
+func favorites(g *Globals) (*vtex.Client, string, []vtex.WishlistItem, string, error) {
+	client, email, err := wishlistSession(g)
+	if err != nil {
+		return nil, "", nil, "", err
+	}
+	lists, err := client.Wishlists(email)
+	if err != nil {
+		return nil, "", nil, "", err
+	}
+	var items []vtex.WishlistItem
+	name := vtex.DefaultWishlistName
+	for _, l := range lists {
+		if l.Name != "" {
+			name = l.Name
+		}
+		items = append(items, l.Items...)
+	}
+	return client, email, items, name, nil
+}
+
+type FavShowCmd struct{}
+
+func (c *FavShowCmd) Run(g *Globals) error {
+	_, _, items, name, err := favorites(g)
 	if err != nil {
 		return err
 	}
@@ -32,44 +76,107 @@ func (c *FavCmd) Run(g *Globals) error {
 	for _, it := range items {
 		fmt.Printf("%-10s %s\n", it.SKU, it.Title)
 	}
-	outfmt.Hint("Add one with: %s cart add <sku>", g.Store.Name)
+	outfmt.Hint("Add one to the cart with: %s cart add <sku>", g.Store.Name)
 	return nil
 }
 
-// favorites returns the shopper's favorites, preferring the store's own
-// wishlist and falling back to a local list for stores without one.
-func favorites(g *Globals) ([]vtex.WishlistItem, string, error) {
-	if g.Store.WishlistHash != "" {
-		client, err := g.RequireAuth()
-		if err != nil {
-			return nil, "", err
+type FavAddCmd struct {
+	SKU    string `arg:"" help:"SKU to save."`
+	DryRun bool   `short:"n" help:"Show what would be saved."`
+}
+
+func (c *FavAddCmd) Run(g *Globals) error {
+	if err := validateID(c.SKU); err != nil {
+		return err
+	}
+	if !g.Store.Wishlist.CanWrite() {
+		return errfmt.Config(fmt.Sprintf(
+			"%s wishlist is read-only in this build", g.Store.Label()))
+	}
+	client, email, items, listName, err := favorites(g)
+	if err != nil {
+		return err
+	}
+	for _, it := range items {
+		if it.SKU == c.SKU || it.ProductID == c.SKU {
+			outfmt.Hint("%s is already saved: %s", c.SKU, it.Title)
+			return nil
 		}
-		email, err := client.AuthenticatedUser()
-		if err != nil {
-			return nil, "", err
-		}
-		lists, err := client.Wishlists(email)
-		if err != nil {
-			return nil, "", err
-		}
-		var items []vtex.WishlistItem
-		name := "Wishlist"
-		for _, l := range lists {
-			if l.Name != "" {
-				name = l.Name
-			}
-			items = append(items, l.Items...)
-		}
-		return items, name, nil
 	}
 
-	lists, err := g.Config().LoadLists()
+	// The API stores productId, sku, and title, and productId differs from
+	// sku for products with variants — so look the product up rather than
+	// assuming the SKU is both.
+	found, err := lookupSKU(client, c.SKU)
 	if err != nil {
-		return nil, "", errfmt.Wrap(errfmt.ExitConfig, "load lists", err)
+		return err
 	}
-	var items []vtex.WishlistItem
-	for _, sku := range lists[favoritesList] {
-		items = append(items, vtex.WishlistItem{SKU: sku, ProductID: sku})
+	item := vtex.WishlistItem{ProductID: found.ProductID, SKU: found.SKU, Title: found.Name}
+
+	if c.DryRun {
+		return g.Formatter().Print(map[string]any{
+			"action": "fav-add", "item": item, "list": listName, "dryRun": true,
+		})
 	}
-	return items, favoritesList + " (local)", nil
+	if err := client.AddToWishlist(email, listName, item); err != nil {
+		return err
+	}
+	outfmt.Success("Saved %s — %s", item.SKU, item.Title)
+	return nil
+}
+
+type FavRemoveCmd struct {
+	SKU    string `arg:"" help:"SKU to remove."`
+	DryRun bool   `short:"n" help:"Show what would be removed."`
+}
+
+func (c *FavRemoveCmd) Run(g *Globals) error {
+	if err := validateID(c.SKU); err != nil {
+		return err
+	}
+	if !g.Store.Wishlist.CanWrite() {
+		return errfmt.Config(fmt.Sprintf(
+			"%s wishlist is read-only in this build", g.Store.Label()))
+	}
+	client, email, items, listName, err := favorites(g)
+	if err != nil {
+		return err
+	}
+
+	// RemoveFromList takes the wishlist item's own id, not the SKU, so the
+	// list has to be read first. Removing by SKU directly would delete
+	// whichever item happened to sit at that numeric position.
+	for _, it := range items {
+		if it.SKU == c.SKU || it.ProductID == c.SKU {
+			if c.DryRun {
+				return g.Formatter().Print(map[string]any{
+					"action": "fav-remove", "item": it, "list": listName, "dryRun": true,
+				})
+			}
+			removed, err := client.RemoveFromWishlist(email, listName, it.ID)
+			if err != nil {
+				return err
+			}
+			if !removed {
+				return errfmt.Domain(fmt.Sprintf("store declined to remove %s", c.SKU))
+			}
+			outfmt.Success("Removed %s — %s", it.SKU, it.Title)
+			return nil
+		}
+	}
+	return errfmt.NotFound(fmt.Sprintf("%s is not in your wishlist", c.SKU))
+}
+
+// lookupSKU finds a catalog entry by SKU or product id.
+func lookupSKU(client *vtex.Client, id string) (*vtex.SearchResult, error) {
+	results, err := client.Search(id, 50)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range results {
+		if r.SKU == id || r.ProductID == id {
+			return &r, nil
+		}
+	}
+	return nil, errfmt.NotFound(fmt.Sprintf("SKU %s not found in the catalog", id))
 }

@@ -40,18 +40,31 @@ func TestValidateIDAcceptsRealIDs(t *testing.T) {
 	}
 }
 
-func TestFavShowOnFreshAccountIsEmptyNotMissing(t *testing.T) {
-	// No WishlistHash means the local-list path, which is what a store
-	// without a readable wishlist uses.
+func TestFavOnStoreWithoutWishlistIsAConfigError(t *testing.T) {
+	// A store with no wishlist hashes cannot reach the API at all; say so
+	// rather than reporting an empty wishlist the shopper might believe.
 	g := testGlobals(t, store.Store{Name: "fr"}, &CLI{JSON: true})
-	err := (&FavCmd{}).Run(g)
+	err := (&FavShowCmd{}).Run(g)
 	var typed *errfmt.Error
 	if !errors.As(err, &typed) {
 		t.Fatalf("err = %v, want a typed error", err)
 	}
-	// The user never named "favorites", so its absence is emptiness (3),
-	// not a missing resource they asked for (5).
-	if typed.Code != errfmt.ExitEmpty {
-		t.Errorf("code = %d, want %d (empty)", typed.Code, errfmt.ExitEmpty)
+	if typed.Code != errfmt.ExitConfig {
+		t.Errorf("code = %d, want %d (config)", typed.Code, errfmt.ExitConfig)
+	}
+}
+
+func TestWishlistHashCapabilities(t *testing.T) {
+	none := store.WishlistHashes{}
+	readOnly := store.WishlistHashes{View: "v"}
+	full := store.WishlistHashes{View: "v", Add: "a", Remove: "r"}
+	if none.CanRead() || none.CanWrite() {
+		t.Error("zero value must have no wishlist capability")
+	}
+	if !readOnly.CanRead() || readOnly.CanWrite() {
+		t.Error("a view hash alone is read-only")
+	}
+	if !full.CanRead() || !full.CanWrite() {
+		t.Error("all three hashes means read and write")
 	}
 }

@@ -8,8 +8,6 @@ import (
 	"github.com/voska/vtexkit/cli/outfmt"
 )
 
-const favoritesList = "favorites"
-
 type ListCmd struct {
 	Show   ListShowCmd   `cmd:"" default:"withargs" help:"Show a list, or all lists."`
 	Add    ListAddCmd    `cmd:"" help:"Add a SKU to a list."`
