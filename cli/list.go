@@ -11,7 +11,7 @@ import (
 const favoritesList = "favorites"
 
 type ListCmd struct {
-	Show   ListShowCmd   `cmd:"" default:"1" help:"Show a list, or all lists."`
+	Show   ListShowCmd   `cmd:"" default:"withargs" help:"Show a list, or all lists."`
 	Add    ListAddCmd    `cmd:"" help:"Add a SKU to a list."`
 	Remove ListRemoveCmd `cmd:"" help:"Remove a SKU from a list."`
 	Order  ListOrderCmd  `cmd:"" help:"Add every SKU in a list to the cart."`

@@ -10,6 +10,7 @@ package money
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 )
 
@@ -53,4 +54,26 @@ func (c Centavos) String() string {
 		return "-" + out
 	}
 	return out
+}
+
+// UnmarshalJSON accepts both integer and decimal encodings of a centavo
+// amount. VTEX is inconsistent: the checkout orderForm sends 15372 while
+// the OMS order list sends 26511.0 for the same kind of value. Both mean
+// centavos; only the JSON encoding differs.
+func (c *Centavos) UnmarshalJSON(data []byte) error {
+	s := strings.TrimSpace(string(data))
+	if s == "null" {
+		*c = 0
+		return nil
+	}
+	s = strings.Trim(s, `"`)
+
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return fmt.Errorf("money: cannot parse %s as centavos: %w", data, err)
+	}
+	// Round rather than truncate: a wire value of 26510.999999 must not
+	// become 26510.
+	*c = Centavos(math.Round(f))
+	return nil
 }

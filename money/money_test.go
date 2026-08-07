@@ -77,3 +77,43 @@ func TestJSONUnmarshalsFromInteger(t *testing.T) {
 		t.Errorf("Price = %d, want 15372", int64(v.Price))
 	}
 }
+
+func TestUnmarshalAcceptsBothWireEncodings(t *testing.T) {
+	// The checkout orderForm sends integers; the OMS order list sends
+	// decimals for the same kind of value. Both are centavos.
+	tests := []struct {
+		name string
+		json string
+		want money.Centavos
+	}{
+		{"orderForm integer", `{"v":15372}`, 15372},
+		{"OMS decimal", `{"v":26511.0}`, 26511},
+		{"decimal with fraction", `{"v":26510.6}`, 26511},
+		{"string", `{"v":"15372"}`, 15372},
+		{"null", `{"v":null}`, 0},
+		{"zero", `{"v":0}`, 0},
+		{"negative discount", `{"v":-1708.0}`, -1708},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var v struct {
+				V money.Centavos `json:"v"`
+			}
+			if err := json.Unmarshal([]byte(tt.json), &v); err != nil {
+				t.Fatalf("%s: %v", tt.json, err)
+			}
+			if v.V != tt.want {
+				t.Errorf("%s -> %d, want %d", tt.json, int64(v.V), int64(tt.want))
+			}
+		})
+	}
+}
+
+func TestUnmarshalRejectsGarbage(t *testing.T) {
+	var v struct {
+		V money.Centavos `json:"v"`
+	}
+	if err := json.Unmarshal([]byte(`{"v":"not a number"}`), &v); err == nil {
+		t.Error("garbage must not silently become zero")
+	}
+}
