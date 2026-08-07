@@ -18,3 +18,5 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
+
+replace github.com/voska/vtexkit => ../vtexkit

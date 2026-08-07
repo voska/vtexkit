@@ -44,7 +44,7 @@ func TestFavShowOnFreshAccountIsEmptyNotMissing(t *testing.T) {
 	// No WishlistHash means the local-list path, which is what a store
 	// without a readable wishlist uses.
 	g := testGlobals(t, store.Store{Name: "fr"}, &CLI{JSON: true})
-	err := (&FavShowCmd{}).Run(g)
+	err := (&FavCmd{}).Run(g)
 	var typed *errfmt.Error
 	if !errors.As(err, &typed) {
 		t.Fatalf("err = %v, want a typed error", err)
