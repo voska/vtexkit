@@ -16,17 +16,18 @@ import (
 // cart" is never what anyone means. Curated lists meant to be ordered
 // wholesale live under `list`.
 type FavCmd struct {
-	Show   FavShowCmd   `cmd:"" default:"withargs" help:"Show the wishlist."`
-	Add    FavAddCmd    `cmd:"" help:"Save a product to the wishlist."`
-	Remove FavRemoveCmd `cmd:"" help:"Remove a product from the wishlist."`
+	Show   FavShowCmd   `cmd:"" default:"withargs" help:"Show favorites."`
+	Add    FavAddCmd    `cmd:"" help:"Save a product to favorites."`
+	Remove FavRemoveCmd `cmd:"" help:"Remove a product from favorites."`
 }
+
+// favoritesList is the local list used by stores whose wishlist API is not
+// reachable. It predates wishlist support and must keep working: zonasul
+// v0.5.0 shipped `fav` backed by it.
+const favoritesList = "favorites"
 
 // wishlistSession resolves the logged-in shopper for wishlist operations.
 func wishlistSession(g *Globals) (*vtex.Client, string, error) {
-	if !g.Store.Wishlist.CanRead() {
-		return nil, "", errfmt.Config(fmt.Sprintf(
-			"%s has no wishlist support configured", g.Store.Label()))
-	}
 	client, err := g.RequireAuth()
 	if err != nil {
 		return nil, "", err
@@ -38,8 +39,13 @@ func wishlistSession(g *Globals) (*vtex.Client, string, error) {
 	return client, email, nil
 }
 
-// favorites returns the shopper's saved items and the list's name.
+// favorites returns the shopper's saved items and the list's name, from the
+// store's own wishlist when it is reachable and from a local list otherwise.
 func favorites(g *Globals) (*vtex.Client, string, []vtex.WishlistItem, string, error) {
+	if !g.Store.Wishlist.CanRead() {
+		items, err := localFavorites(g)
+		return nil, "", items, favoritesList + " (local)", err
+	}
 	client, email, err := wishlistSession(g)
 	if err != nil {
 		return nil, "", nil, "", err
@@ -57,6 +63,19 @@ func favorites(g *Globals) (*vtex.Client, string, []vtex.WishlistItem, string, e
 		items = append(items, l.Items...)
 	}
 	return client, email, items, name, nil
+}
+
+// localFavorites reads the on-disk favorites list.
+func localFavorites(g *Globals) ([]vtex.WishlistItem, error) {
+	lists, err := g.Config().LoadLists()
+	if err != nil {
+		return nil, errfmt.Wrap(errfmt.ExitConfig, "load lists", err)
+	}
+	var items []vtex.WishlistItem
+	for _, sku := range lists[favoritesList] {
+		items = append(items, vtex.WishlistItem{SKU: sku, ProductID: sku})
+	}
+	return items, nil
 }
 
 type FavShowCmd struct{}
@@ -90,8 +109,7 @@ func (c *FavAddCmd) Run(g *Globals) error {
 		return err
 	}
 	if !g.Store.Wishlist.CanWrite() {
-		return errfmt.Config(fmt.Sprintf(
-			"%s wishlist is read-only in this build", g.Store.Label()))
+		return (&ListAddCmd{Name: favoritesList, SKU: c.SKU}).Run(g)
 	}
 	client, email, items, listName, err := favorites(g)
 	if err != nil {
@@ -135,8 +153,7 @@ func (c *FavRemoveCmd) Run(g *Globals) error {
 		return err
 	}
 	if !g.Store.Wishlist.CanWrite() {
-		return errfmt.Config(fmt.Sprintf(
-			"%s wishlist is read-only in this build", g.Store.Label()))
+		return (&ListRemoveCmd{Name: favoritesList, SKU: c.SKU}).Run(g)
 	}
 	client, email, items, listName, err := favorites(g)
 	if err != nil {

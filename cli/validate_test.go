@@ -40,20 +40,6 @@ func TestValidateIDAcceptsRealIDs(t *testing.T) {
 	}
 }
 
-func TestFavOnStoreWithoutWishlistIsAConfigError(t *testing.T) {
-	// A store with no wishlist hashes cannot reach the API at all; say so
-	// rather than reporting an empty wishlist the shopper might believe.
-	g := testGlobals(t, store.Store{Name: "fr"}, &CLI{JSON: true})
-	err := (&FavShowCmd{}).Run(g)
-	var typed *errfmt.Error
-	if !errors.As(err, &typed) {
-		t.Fatalf("err = %v, want a typed error", err)
-	}
-	if typed.Code != errfmt.ExitConfig {
-		t.Errorf("code = %d, want %d (config)", typed.Code, errfmt.ExitConfig)
-	}
-}
-
 func TestWishlistHashCapabilities(t *testing.T) {
 	none := store.WishlistHashes{}
 	readOnly := store.WishlistHashes{View: "v"}
@@ -66,5 +52,32 @@ func TestWishlistHashCapabilities(t *testing.T) {
 	}
 	if !full.CanRead() || !full.CanWrite() {
 		t.Error("all three hashes means read and write")
+	}
+}
+
+func TestFavFallsBackToLocalListWithoutWishlistSupport(t *testing.T) {
+	// zonasul v0.5.0 shipped `fav` backed by a local list. A store with no
+	// wishlist hashes must keep that behavior, not fail with a config error.
+	g := testGlobals(t, store.Store{Name: "zonasul"}, &CLI{JSON: true})
+	err := (&FavShowCmd{}).Run(g)
+	var typed *errfmt.Error
+	if !errors.As(err, &typed) {
+		t.Fatalf("err = %v, want a typed error", err)
+	}
+	if typed.Code != errfmt.ExitEmpty {
+		t.Errorf("code = %d, want %d (empty) — an empty local list is emptiness, not misconfiguration",
+			typed.Code, errfmt.ExitEmpty)
+	}
+
+	// And writes must land in the local list.
+	if err := (&FavAddCmd{SKU: "33277"}).Run(g); err != nil {
+		t.Fatalf("fav add on a local-list store: %v", err)
+	}
+	items, err := localFavorites(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].SKU != "33277" {
+		t.Errorf("local favorites = %+v, want the added SKU", items)
 	}
 }
