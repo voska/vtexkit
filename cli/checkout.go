@@ -15,24 +15,104 @@ type CheckoutCmd struct {
 	Run      CheckoutRunCmd      `cmd:"" default:"1" help:"Preview or place an order."`
 }
 
-type CheckoutPaymentsCmd struct{}
+type CheckoutPaymentsCmd struct {
+	CEP string `help:"Postal code for the fallback simulation. Defaults to the configured address."`
+	SKU string `help:"SKU for the fallback simulation."`
+}
 
+// Run lists the payment methods the store accepts and any cards saved on
+// the account.
+//
+// VTEX only populates paymentSystems once a cart has items, so an empty
+// cart falls back to a shipping simulation, which returns the same list
+// without mutating anything.
 func (c *CheckoutPaymentsCmd) Run(g *Globals) error {
-	client, of, err := resolveCart(g)
+	systems, savedCards, err := c.gather(g)
 	if err != nil {
 		return err
 	}
-	if len(of.PaymentSystems) == 0 {
-		return errfmt.Domain("store reported no payment methods — add an item to the cart first")
+	if len(systems) == 0 && len(savedCards) == 0 {
+		return errfmt.Domain("store reported no payment methods")
 	}
-	_ = client
+
 	if g.Formatter().IsJSON() || g.CLI.Plain || g.CLI.Quiet {
-		return g.Formatter().Print(of.PaymentSystems)
+		return g.Formatter().Print(map[string]any{
+			"accepted":   systems,
+			"savedCards": savedCards,
+		})
 	}
-	for _, ps := range of.PaymentSystems {
-		fmt.Printf("%-6d %-24s %s\n", ps.ID, ps.Name, ps.GroupName)
+	fmt.Println("Accepted by this store:")
+	for _, ps := range systems {
+		fmt.Printf("  %-6d %-24s %s\n", ps.ID, ps.Name, ps.GroupName)
+	}
+	fmt.Println()
+	if len(savedCards) == 0 {
+		outfmt.Hint("No cards saved on this account.")
+		return nil
+	}
+	fmt.Println("Saved on your account:")
+	for _, card := range savedCards {
+		fmt.Printf("  %-24s %s\n", card.PaymentSystemName, card.CardNumber)
 	}
 	return nil
+}
+
+func (c *CheckoutPaymentsCmd) gather(g *Globals) ([]vtex.PaymentSystem, []vtex.SavedCard, error) {
+	// Authenticated first: only a real order form carries saved cards.
+	if client, err := g.RequireAuth(); err == nil {
+		if of, ofErr := client.GetOrderForm(g.OrderFormID(client)); ofErr == nil {
+			cards, _ := client.GetSavedCards(of.OrderFormID)
+			if len(of.PaymentSystems) > 0 || len(cards) > 0 {
+				return of.PaymentSystems, cards, nil
+			}
+		}
+	}
+
+	// Empty cart or not logged in: simulate instead of mutating the cart.
+	systems, err := c.simulateSystems(g)
+	if err != nil {
+		return nil, nil, err
+	}
+	return systems, nil, nil
+}
+
+func (c *CheckoutPaymentsCmd) simulateSystems(g *Globals) ([]vtex.PaymentSystem, error) {
+	cep := c.CEP
+	if cep == "" {
+		if cfg, err := g.Config().Load(); err == nil {
+			cep = cfg.CEP
+		}
+	}
+	if cep == "" {
+		return nil, errfmt.Usage(
+			"cart is empty, so payment methods need a simulation — pass --cep and --sku")
+	}
+
+	client := g.Client()
+	sku := c.SKU
+	if sku == "" {
+		// Any purchasable SKU works; the list is store-wide.
+		results, err := client.Search("a", 1)
+		if err != nil || len(results) == 0 {
+			return nil, errfmt.Usage(
+				"cart is empty, so payment methods need a simulation — pass --sku")
+		}
+		sku = results[0].SKU
+	}
+	if err := validateID(sku); err != nil {
+		return nil, err
+	}
+	seller, err := discoverSeller(client, sku)
+	if err != nil {
+		return nil, err
+	}
+	sim, err := client.Simulate([]vtex.SimulationItemRequest{
+		{ID: sku, Quantity: 1, Seller: seller},
+	}, cep)
+	if err != nil {
+		return nil, err
+	}
+	return sim.PaymentSystems, nil
 }
 
 type CheckoutRunCmd struct {
