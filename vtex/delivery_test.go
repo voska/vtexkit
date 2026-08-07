@@ -50,12 +50,12 @@ func TestSimulateWorksUnauthenticated(t *testing.T) {
 	if sla.Name != "Entrega Agendada" {
 		t.Errorf("SLA = %q, want Entrega Agendada", sla.Name)
 	}
-	// Recorded live for Bela Vista on 2026-08-07.
+	// Recorded live on 2026-08-07.
 	if len(sla.AvailableDeliveryWindows) != 66 {
 		t.Errorf("windows = %d, want 66", len(sla.AvailableDeliveryWindows))
 	}
 	if sla.Price != 0 {
-		t.Errorf("shipping = %d, want 0 (free to Bela Vista)", int64(sla.Price))
+		t.Errorf("shipping = %d, want 0 (free delivery)", int64(sla.Price))
 	}
 }
 
