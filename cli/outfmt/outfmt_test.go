@@ -177,3 +177,27 @@ func TestPlainDisablesColor(t *testing.T) {
 		t.Error("plain mode must disable color")
 	}
 }
+
+func TestPlainWithoutSelectIsDeterministic(t *testing.T) {
+	// Map iteration order is randomized per run, so an unsorted --plain
+	// would shuffle columns between invocations of the same command.
+	var first string
+	for i := 0; i < 20; i++ {
+		var buf bytes.Buffer
+		f := outfmt.New(outfmt.Options{Plain: true}, &buf)
+		if err := f.Print(sample[0]); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = buf.String()
+			continue
+		}
+		if buf.String() != first {
+			t.Fatalf("run %d differs:\n got %q\nwant %q", i, buf.String(), first)
+		}
+	}
+	// Sorted key order for row{SKU,Name,Price} is name, price, sku.
+	if got := strings.TrimSpace(first); got != "Kit Peixe Fresco\t15372\t134" {
+		t.Errorf("plain = %q", got)
+	}
+}

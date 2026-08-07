@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/muesli/termenv"
@@ -210,8 +211,16 @@ func (f *Formatter) orderedValues(row any) []string {
 		}
 		return out
 	}
-	for _, val := range m {
-		out = append(out, scalar(val))
+	// Without an explicit Select, sort keys. Go map iteration order is
+	// randomized per run, and --plain is a contract scripts pipe into:
+	// unsorted output would silently shuffle columns between invocations.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		out = append(out, scalar(m[k]))
 	}
 	return out
 }
