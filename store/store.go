@@ -80,6 +80,11 @@ type Store struct {
 	// SearchHash and BindingID apply only to SearchGraphQL.
 	SearchHash string
 	BindingID  string
+	// WishlistHash is the persisted-query hash for vtex.wish-list's
+	// ViewLists operation. It is tied to the store's installed app
+	// version, and there is no hash-free way to read the wishlist.
+	// Empty means this store's wishlist is not readable.
+	WishlistHash string
 	// MinOrder is a business rule with no API representation. Zona Sul
 	// enforces R$100 but reports it only as a checkout error string.
 	MinOrder money.Centavos
