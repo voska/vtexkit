@@ -1,6 +1,12 @@
 package cli
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/voska/vtexkit/cli/errfmt"
+	"github.com/voska/vtexkit/store"
+)
 
 // Agents hallucinate identifiers, and these values are interpolated straight
 // into request paths.
@@ -31,5 +37,19 @@ func TestValidateIDAcceptsRealIDs(t *testing.T) {
 		if err := validateID(id); err != nil {
 			t.Errorf("validateID(%q) = %v, want nil", id, err)
 		}
+	}
+}
+
+func TestFavShowOnFreshAccountIsEmptyNotMissing(t *testing.T) {
+	g := testGlobals(t, store.Store{Name: "fr"}, &CLI{JSON: true})
+	err := (&FavShowCmd{}).Run(g)
+	var typed *errfmt.Error
+	if !errors.As(err, &typed) {
+		t.Fatalf("err = %v, want a typed error", err)
+	}
+	// The user never named "favorites", so its absence is emptiness (3),
+	// not a missing resource they asked for (5).
+	if typed.Code != errfmt.ExitEmpty {
+		t.Errorf("code = %d, want %d (empty)", typed.Code, errfmt.ExitEmpty)
 	}
 }

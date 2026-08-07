@@ -1,5 +1,7 @@
 package cli
 
+import "github.com/voska/vtexkit/cli/errfmt"
+
 // FavCmd is shorthand for operating on the "favorites" list.
 type FavCmd struct {
 	Show   FavShowCmd   `cmd:"" default:"1" help:"Show favorites."`
@@ -10,8 +12,19 @@ type FavCmd struct {
 
 type FavShowCmd struct{}
 
+// Run shows favorites. Unlike `list show <name>`, an absent favorites list
+// is emptiness rather than a missing resource: the user never named it, so
+// exit 3 is the honest code, not 5.
 func (c *FavShowCmd) Run(g *Globals) error {
-	return (&ListShowCmd{Name: favoritesList}).Run(g)
+	lists, err := g.Config().LoadLists()
+	if err != nil {
+		return errfmt.Wrap(errfmt.ExitConfig, "load lists", err)
+	}
+	skus := lists[favoritesList]
+	if len(skus) == 0 {
+		return errfmt.Empty()
+	}
+	return g.Formatter().Print(skus)
 }
 
 type FavAddCmd struct {
