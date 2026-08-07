@@ -14,7 +14,7 @@ import (
 type AuthCmd struct {
 	Login  AuthLoginCmd  `cmd:"" help:"Log in with email and password, or a raw JWT."`
 	Code   AuthCodeCmd   `cmd:"" help:"Log in with an emailed access code."`
-	Status AuthStatusCmd `cmd:"" default:"1" help:"Show authentication state."`
+	Status AuthStatusCmd `cmd:"" default:"withargs" help:"Show authentication state."`
 	Logout AuthLogoutCmd `cmd:"" help:"Clear stored credentials."`
 }
 

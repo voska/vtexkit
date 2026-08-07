@@ -8,7 +8,7 @@ import (
 )
 
 type DeliveryCmd struct {
-	Windows  DeliveryWindowsCmd  `cmd:"" default:"1" help:"List delivery windows for the current cart."`
+	Windows  DeliveryWindowsCmd  `cmd:"" default:"withargs" help:"List delivery windows for the current cart."`
 	Simulate DeliverySimulateCmd `cmd:"" help:"Check delivery for a CEP without logging in."`
 }
 
