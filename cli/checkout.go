@@ -92,7 +92,7 @@ func (c *CheckoutPaymentsCmd) simulateSystems(g *Globals) ([]vtex.PaymentSystem,
 	sku := c.SKU
 	if sku == "" {
 		// Any purchasable SKU works; the list is store-wide.
-		results, err := client.Search("a", 1)
+		results, err := client.Search(probeQuery, 1)
 		if err != nil || len(results) == 0 {
 			return nil, errfmt.Usage(
 				"cart is empty, so payment methods need a simulation — pass --sku")

@@ -45,6 +45,7 @@ type CLI struct {
 	Checkout  CheckoutCmd  `cmd:"" help:"Preview or place an order."`
 	Orders    OrdersCmd    `cmd:"" help:"List recent orders."`
 	Store     StoreCmd     `cmd:"" help:"Store descriptor and live capabilities."`
+	Doctor    DoctorCmd    `cmd:"" help:"Check whether ordering will work, and what to fix."`
 	Schema    SchemaCmd    `cmd:"" help:"Dump the command tree as JSON."`
 	ExitCodes ExitCodesCmd `cmd:"" name:"exit-codes" help:"Print the exit code reference."`
 	Agent     AgentCmd     `cmd:"" hidden:"" help:"Deprecated alias for exit-codes."`
