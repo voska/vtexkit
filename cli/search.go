@@ -55,12 +55,13 @@ func (c *ProductCmd) Run(g *Globals) error {
 	if err := validateID(c.SKU); err != nil {
 		return err
 	}
-	results, err := g.Client().Search(c.SKU, 50)
+	found, err := lookupSKU(g.Client(), c.SKU)
 	if err != nil {
 		return err
 	}
-	for _, r := range results {
-		if r.SKU == c.SKU {
+	{
+		r := *found
+		{
 			if g.Formatter().IsJSON() || g.CLI.Plain || g.CLI.Quiet {
 				return g.Formatter().Print(r)
 			}
@@ -72,5 +73,4 @@ func (c *ProductCmd) Run(g *Globals) error {
 			return nil
 		}
 	}
-	return errfmt.NotFound(fmt.Sprintf("SKU %s not found", c.SKU))
 }

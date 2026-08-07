@@ -40,7 +40,7 @@ type CLI struct {
 	Product   ProductCmd   `cmd:"" help:"Look up a product by SKU."`
 	Cart      CartCmd      `cmd:"" help:"Manage the shopping cart."`
 	List      ListCmd      `cmd:"" help:"Manage local SKU lists you can order wholesale."`
-	Fav       FavCmd       `cmd:"" help:"Show the store's wishlist (read-only)."`
+	Fav       FavCmd       `cmd:"" help:"Manage the store's wishlist."`
 	Delivery  DeliveryCmd  `cmd:"" help:"Delivery windows and simulation."`
 	Checkout  CheckoutCmd  `cmd:"" help:"Preview or place an order."`
 	Orders    OrdersCmd    `cmd:"" help:"List recent orders."`

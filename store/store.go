@@ -80,17 +80,32 @@ type Store struct {
 	// SearchHash and BindingID apply only to SearchGraphQL.
 	SearchHash string
 	BindingID  string
-	// WishlistHash is the persisted-query hash for vtex.wish-list's
-	// ViewLists operation. It is tied to the store's installed app
-	// version, and there is no hash-free way to read the wishlist.
-	// Empty means this store's wishlist is not readable.
-	WishlistHash string
+	// Wishlist carries the persisted-query hashes for vtex.wish-list.
+	// A zero value means this store's wishlist is not reachable.
+	Wishlist WishlistHashes
 	// MinOrder is a business rule with no API representation. Zona Sul
 	// enforces R$100 but reports it only as a checkout error string.
 	MinOrder money.Centavos
 	OAuth    OAuthDriver
 	Quirks   Quirks
 }
+
+// WishlistHashes are the persisted-query hashes for the vtex.wish-list
+// operations. They are the only way to reach that API — plain,
+// non-persisted queries against the same provider are rejected — and they
+// are tied to the store's installed app version, so they must be captured
+// per store from a live browser session.
+type WishlistHashes struct {
+	View   string // ViewLists
+	Add    string // AddToList
+	Remove string // RemoveFromList
+}
+
+// CanRead reports whether the store's wishlist can be listed.
+func (w WishlistHashes) CanRead() bool { return w.View != "" }
+
+// CanWrite reports whether the store's wishlist can be modified.
+func (w WishlistHashes) CanWrite() bool { return w.Add != "" && w.Remove != "" }
 
 // AccountName returns the VTEX account name, deriving it from the base URL
 // host when not set: www.frescatto.com -> frescatto,
