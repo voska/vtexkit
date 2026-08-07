@@ -1,0 +1,611 @@
+[
+  {
+    "productId": "134",
+    "productName": "Kit Peixe Fresco - Salmão, Tilápia e Camarão",
+    "brand": "Frescatto",
+    "brandId": 2000001,
+    "brandImageUrl": null,
+    "linkText": "kit-peixe-fresco",
+    "productReference": "00000000000002",
+    "productReferenceCode": "00000000000002",
+    "categoryId": "37",
+    "productTitle": "Kit Peixe Fresco - Salmão, Tilápia e Camarão",
+    "metaTagDescription": "Compre online Kit Peixe Fresco com Salmão, Tilápia e Camarão. Frete grátis a partir de R$400. Confira na peixaria da Frescatto!",
+    "releaseDate": "2020-12-28T00:00:00Z",
+    "clusterHighlights": {},
+    "productClusters": {
+      "138": "Mais vendidos",
+      "143": "Kits",
+      "144": "Todos os produtos"
+    },
+    "searchableClusters": {},
+    "categories": [
+      "/Kits de Pescados/",
+      "/Frescos/",
+      "/Frescos/Salmão/",
+      "/Frescos/Camarão/",
+      "/Salmão/",
+      "/Camarão/",
+      "/Frescos/Kits/",
+      "/Camarão/Camarão Cinza/",
+      "/Peixes Brancos/",
+      "/Peixes Brancos/Tilápia/"
+    ],
+    "categoriesIds": [
+      "/37/",
+      "/1/",
+      "/1/13/",
+      "/1/16/",
+      "/35/",
+      "/36/",
+      "/1/46/",
+      "/36/48/",
+      "/54/",
+      "/54/56/"
+    ],
+    "link": "https://www.frescatto.com/kit-peixe-fresco/p",
+    "imagem-lateral": [
+      "Kit Peixe Fresco - Salmão, Tilápia e Camarão_diag_1000x1000pxl.png"
+    ],
+    "características": [
+      "imagem-lateral"
+    ],
+    "corte": [
+      "Cortes variados"
+    ],
+    "Corte": [
+      "corte"
+    ],
+    "pescado": [
+      "Fresco"
+    ],
+    "Pescado": [
+      "pescado"
+    ],
+    "fonte": [
+      "de proteína"
+    ],
+    "Fonte": [
+      "fonte"
+    ],
+    "rico": [
+      "em ômega-3, vitamina D e selênio."
+    ],
+    "Rico": [
+      "rico"
+    ],
+    "tipo-de-pesca": [
+      "Cultivo, água salgada/doce"
+    ],
+    "Tipo de pesca": [
+      "tipo-de-pesca"
+    ],
+    "gluten": [
+      "Sem glúten"
+    ],
+    "Gluten": [
+      "gluten"
+    ],
+    "produto-exclusivo": [
+      "Ativo"
+    ],
+    "Produto Exclusivo": [
+      "produto-exclusivo"
+    ],
+    "allSpecifications": [
+      "imagem-lateral",
+      "corte",
+      "pescado",
+      "fonte",
+      "rico",
+      "tipo-de-pesca",
+      "gluten",
+      "produto-exclusivo"
+    ],
+    "allSpecificationsGroups": [
+      "características",
+      "Corte",
+      "Pescado",
+      "Fonte",
+      "Rico",
+      "Tipo de pesca",
+      "Gluten",
+      "Produto Exclusivo"
+    ],
+    "description": "Leve para casa a <strong>combinação perfeita de peixes e frutos do mar em um único kit!</strong> Desfrute de <strong>Filés de Tilápia frescos</strong>, um peixe branco de carne magra, versátil e de sabor suave. Leve também o <strong>Camarão Cinza</strong>, já sem casca e sem vísceras, pronto para o preparo — não precisa nem descongelar. Para completar, o <strong>Salmão cultivado nas águas geladas do Chile</strong>, com sua carne macia e suculenta devido à alta concentração de gorduras boas, como o ômega-3<br/><br/><strong>Compre os 4 itens com desconto: </strong><br/>400g de Salmão em pedaços | 400g Filé de Tilápia | 400g de Camarão Cinza",
+    "items": [
+      {
+        "itemId": "134",
+        "name": "Kit Peixe Fresco - Salmão, Tilápia e Camarão",
+        "nameComplete": "Kit Peixe Fresco - Salmão, Tilápia e Camarão",
+        "complementName": "",
+        "ean": "",
+        "referenceId": [
+          {
+            "Key": "RefId",
+            "Value": "00000000000002-002"
+          }
+        ],
+        "measurementUnit": "un",
+        "unitMultiplier": 1.0000,
+        "modalType": null,
+        "isKit": true,
+        "kitItems": [
+          {
+            "itemId": "42",
+            "amount": 1
+          },
+          {
+            "itemId": "67",
+            "amount": 1
+          },
+          {
+            "itemId": "40",
+            "amount": 1
+          }
+        ],
+        "images": [
+          {
+            "imageId": "156942",
+            "imageLabel": "hover",
+            "imageTag": "<img src=\"~/arquivos/ids/156942-#width#-#height#/Kit-Peixe-Fresco---Salmao-Tilapia-e-Camarao_800x800pxl.png?v=639168085792300000\" width=\"#width#\" height=\"#height#\" alt=\"Kit-Peixe-Fresco---Salmao-Tilapia-e-Camarao_800x800pxl\" id=\"\" />",
+            "imageUrl": "https://frescatto.vteximg.com.br/arquivos/ids/156942/Kit-Peixe-Fresco---Salmao-Tilapia-e-Camarao_800x800pxl.png?v=639168085792300000",
+            "imageText": "Kit-Peixe-Fresco---Salmao-Tilapia-e-Camarao_800x800pxl",
+            "imageLastModified": "2026-06-11T21:02:59.2300000Z"
+          }
+        ],
+        "sellers": [
+          {
+            "sellerId": "1",
+            "sellerName": "FRIGORIFICO JAHU EIRELI",
+            "addToCartLink": "https://www.frescatto.com/checkout/cart/add?sku=134&qty=1&seller=1&sc=1&price=15372&cv=_&sc=1",
+            "sellerDefault": true,
+            "commertialOffer": {
+              "DeliverySlaSamplesPerRegion": {
+                "0": {
+                  "DeliverySlaPerTypes": [],
+                  "Region": null
+                }
+              },
+              "Installments": [
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "American Express",
+                  "PaymentSystemGroupName": "creditCardPaymentGroup",
+                  "Name": "American Express à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Visa",
+                  "PaymentSystemGroupName": "creditCardPaymentGroup",
+                  "Name": "Visa à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Mastercard",
+                  "PaymentSystemGroupName": "creditCardPaymentGroup",
+                  "Name": "Mastercard à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Hipercard",
+                  "PaymentSystemGroupName": "creditCardPaymentGroup",
+                  "Name": "Hipercard à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Elo",
+                  "PaymentSystemGroupName": "creditCardPaymentGroup",
+                  "Name": "Elo à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Vale",
+                  "PaymentSystemGroupName": "giftCardPaymentGroup",
+                  "Name": "Vale à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "Pix",
+                  "PaymentSystemGroupName": "instantPaymentPaymentGroup",
+                  "Name": "Pix à vista"
+                },
+                {
+                  "Value": 153.72,
+                  "InterestRate": 0.0,
+                  "TotalValuePlusInterestRate": 153.72,
+                  "NumberOfInstallments": 1,
+                  "PaymentSystemName": "WH Google Pay",
+                  "PaymentSystemGroupName": "WH Google PayPaymentGroup",
+                  "Name": "WH Google Pay à vista"
+                }
+              ],
+              "DiscountHighLight": [
+                {
+                  "<Name>k__BackingField": "KITS PROMOCIONAIS"
+                }
+              ],
+              "GiftSkuIds": [],
+              "Teasers": [],
+              "PromotionTeasers": [],
+              "BuyTogether": [],
+              "ItemMetadataAttachment": [],
+              "Price": 153.72,
+              "ListPrice": 170.8,
+              "PriceWithoutDiscount": 170.8,
+              "FullSellingPrice": 153.72,
+              "PriceToken": "eyJhbGciOiJFUzI1NiIsImtpZCI6IjE3OTI1ZmU2LTU2MjUtNDU5MC1iMjkyLWIxOTYwNDJkNWI5NSIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7InByaWNlIjoxNTM3MiwicHJpY2VXaXRob3V0RGlzY291bnQiOjE3MDgwLCJzZWxsZXIiOiIxIiwiaWQiOiIxMzQiLCJhY2NvdW50TmFtZSI6ImZyZXNjYXR0byIsInNhbGVzQ2hhbm5lbCI6IjEifSwiZXhwIjoxNzg2MTE5NjM1LCJpYXQiOjE3ODYxMTc4MzUsImp0aSI6Ijc4NzdiOGU1LWRhYzktNDJmNC1iMDA3LTEwZjZiMjNlNmFiNyIsImlzcyI6InNlc3Npb24vZGF0YS1zaWduZXIifQ.DpfZe6yMHg6wZyDAkPm1v5y-wqqmftk2yZKV5AxuTHgnKWHLx9Su-o5JnProgCPrSFbs19rcMr-iL5Ye6g5vBw",
+              "RewardValue": 15.37,
+              "PriceValidUntil": "4000-01-01T00:00:00Z",
+              "AvailableQuantity": 10,
+              "IsAvailable": true,
+              "Tax": 0.0,
+              "DeliverySlaSamples": [
+                {
+                  "DeliverySlaPerTypes": [],
+                  "Region": null
+                }
+              ],
+              "GetInfoErrorMessage": null,
+              "CacheVersionUsedToCallCheckout": "_",
+              "PaymentOptions": {
+                "installmentOptions": [
+                  {
+                    "paymentSystem": "1",
+                    "bin": null,
+                    "paymentName": "American Express",
+                    "paymentGroupName": "creditCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "2",
+                    "bin": null,
+                    "paymentName": "Visa",
+                    "paymentGroupName": "creditCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "4",
+                    "bin": null,
+                    "paymentName": "Mastercard",
+                    "paymentGroupName": "creditCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "8",
+                    "bin": null,
+                    "paymentName": "Hipercard",
+                    "paymentGroupName": "creditCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "9",
+                    "bin": null,
+                    "paymentName": "Elo",
+                    "paymentGroupName": "creditCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "16",
+                    "bin": null,
+                    "paymentName": "Vale",
+                    "paymentGroupName": "giftCardPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "125",
+                    "bin": null,
+                    "paymentName": "Pix",
+                    "paymentGroupName": "instantPaymentPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "paymentSystem": "900",
+                    "bin": null,
+                    "paymentName": "WH Google Pay",
+                    "paymentGroupName": "WH Google PayPaymentGroup",
+                    "value": 15372,
+                    "installments": [
+                      {
+                        "count": 1,
+                        "hasInterestRate": false,
+                        "interestRate": 0,
+                        "value": 15372,
+                        "total": 15372,
+                        "sellerMerchantInstallments": [
+                          {
+                            "id": "FRESCATTO",
+                            "count": 1,
+                            "hasInterestRate": false,
+                            "interestRate": 0,
+                            "value": 15372,
+                            "total": 15372
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "paymentSystems": [
+                  {
+                    "id": 1,
+                    "name": "American Express",
+                    "groupName": "creditCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "1",
+                    "template": "creditCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 8,
+                    "name": "Hipercard",
+                    "groupName": "creditCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "8",
+                    "template": "creditCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 9,
+                    "name": "Elo",
+                    "groupName": "creditCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "9",
+                    "template": "creditCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 2,
+                    "name": "Visa",
+                    "groupName": "creditCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "2",
+                    "template": "creditCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 4,
+                    "name": "Mastercard",
+                    "groupName": "creditCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "4",
+                    "template": "creditCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 125,
+                    "name": "Pix",
+                    "groupName": "instantPaymentPaymentGroup",
+                    "validator": null,
+                    "stringId": "125",
+                    "template": "instantPaymentPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 16,
+                    "name": "Vale",
+                    "groupName": "giftCardPaymentGroup",
+                    "validator": null,
+                    "stringId": "16",
+                    "template": "giftCardPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  },
+                  {
+                    "id": 900,
+                    "name": "WH Google Pay",
+                    "groupName": "WH Google PayPaymentGroup",
+                    "validator": null,
+                    "stringId": "900",
+                    "template": "WH Google PayPaymentGroup-template",
+                    "requiresDocument": false,
+                    "isCustom": false,
+                    "description": null,
+                    "requiresAuthentication": false,
+                    "dueDate": "2026-08-14T15:00:00Z",
+                    "availablePayments": null
+                  }
+                ],
+                "payments": [],
+                "giftCards": [],
+                "giftCardMessages": [],
+                "availableAccounts": [],
+                "availableTokens": []
+              }
+            }
+          }
+        ],
+        "Videos": [],
+        "estimatedDateArrival": null
+      }
+    ]
+  }
+]
