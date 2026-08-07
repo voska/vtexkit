@@ -39,7 +39,17 @@ type OrderForm struct {
 	Totalizers     []Totalizer     `json:"totalizers"`
 	PaymentSystems []PaymentSystem `json:"-"`
 	Value          money.Centavos  `json:"value"`
+	LoggedIn       bool            `json:"loggedIn"`
+	// AddressCount is how many delivery addresses this cart can see. VTEX
+	// snapshots account data into an order form when it is created, so a
+	// cart minted before the account had an address reports zero here
+	// forever — it can never complete a checkout.
+	AddressCount int `json:"addressCount"`
 }
+
+// Checkoutable reports whether this cart can reach a completed order. A
+// cart with no visible address cannot, regardless of what the account has.
+func (o *OrderForm) Checkoutable() bool { return o.AddressCount > 0 }
 
 // orderFormWire is the wire shape. PaymentSystems is nested under
 // paymentData on the wire but promoted to the top level for callers.
@@ -48,19 +58,71 @@ type orderFormWire struct {
 	Items       []OrderFormItem `json:"items"`
 	Totalizers  []Totalizer     `json:"totalizers"`
 	Value       money.Centavos  `json:"value"`
+	LoggedIn    bool            `json:"loggedIn"`
 	PaymentData struct {
 		PaymentSystems []PaymentSystem `json:"paymentSystems"`
 	} `json:"paymentData"`
+	ShippingData struct {
+		AvailableAddresses []map[string]any `json:"availableAddresses"`
+		SelectedAddresses  []map[string]any `json:"selectedAddresses"`
+	} `json:"shippingData"`
 }
 
 func (w orderFormWire) toOrderForm() *OrderForm {
+	count := len(w.ShippingData.AvailableAddresses)
+	if count == 0 {
+		count = len(w.ShippingData.SelectedAddresses)
+	}
 	return &OrderForm{
 		OrderFormID:    w.OrderFormID,
 		Items:          w.Items,
 		Totalizers:     w.Totalizers,
 		Value:          w.Value,
+		LoggedIn:       w.LoggedIn,
+		AddressCount:   count,
 		PaymentSystems: w.PaymentData.PaymentSystems,
 	}
+}
+
+// UsableCart returns a cart that can actually complete a checkout.
+//
+// VTEX snapshots account data into an order form at creation time and never
+// refreshes it — refreshOutdatedData does not help. A cart minted before the
+// account had a profile or address is therefore permanently unusable, and
+// because the CLI persists a cart id across invocations, a user who tried
+// the CLI before completing their profile would be stuck forever with no
+// way out but deleting the config by hand.
+//
+// When the persisted cart cannot check out, this mints a fresh one and
+// carries the items across, so nothing the user added is lost.
+func (c *Client) UsableCart(persistedID string) (*OrderForm, bool, error) {
+	current, err := c.GetOrderForm(persistedID)
+	if err != nil {
+		return nil, false, err
+	}
+	if persistedID == "" || current.Checkoutable() || c.authToken == "" {
+		return current, false, nil
+	}
+
+	fresh, err := c.NewOrderForm()
+	if err != nil {
+		return current, false, nil //nolint:nilerr // keep the old cart if minting fails
+	}
+	if !fresh.Checkoutable() {
+		// The account genuinely has no address; the old cart is no worse.
+		return current, false, nil
+	}
+
+	for _, item := range current.Items {
+		if _, addErr := c.AddToCart(fresh.OrderFormID, item.ID, item.Seller, item.Quantity); addErr != nil {
+			return nil, false, fmt.Errorf("migrating cart to a usable order form: %w", addErr)
+		}
+	}
+	migrated, err := c.GetOrderForm(fresh.OrderFormID)
+	if err != nil {
+		return nil, false, err
+	}
+	return migrated, true, nil
 }
 
 // ItemsTotal returns the Items totalizer, which excludes shipping. Checkout
@@ -81,6 +143,25 @@ func (o *OrderForm) Total() money.Centavos {
 		sum += t.Value
 	}
 	return sum
+}
+
+// NewOrderForm mints a genuinely new cart.
+//
+// It must use its own cookie jar: VTEX pins a client to its current cart via
+// a checkout cookie, so calling GET /orderForm on a client that has already
+// touched a cart hands back that same cart. Without a clean jar this
+// silently returns the cart you were trying to escape.
+func (c *Client) NewOrderForm() (*OrderForm, error) {
+	clean := New(c.store, c.authToken)
+	body, err := clean.PostJSON("/api/checkout/pub/orderForm", map[string]any{})
+	if err != nil {
+		return nil, fmt.Errorf("new order form: %w", err)
+	}
+	var w orderFormWire
+	if err := json.Unmarshal(body, &w); err != nil {
+		return nil, fmt.Errorf("new order form parse: %w", err)
+	}
+	return w.toOrderForm(), nil
 }
 
 func (c *Client) GetOrderForm(orderFormID string) (*OrderForm, error) {

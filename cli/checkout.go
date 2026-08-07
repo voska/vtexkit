@@ -58,14 +58,14 @@ func (c *CheckoutPaymentsCmd) Run(g *Globals) error {
 }
 
 func (c *CheckoutPaymentsCmd) gather(g *Globals) ([]vtex.PaymentSystem, []vtex.SavedCard, error) {
-	// Authenticated first: only a real order form carries saved cards.
-	if client, err := g.RequireAuth(); err == nil {
-		if of, ofErr := client.GetOrderForm(g.OrderFormID(client)); ofErr == nil {
+	// Authenticated first: only a real order form carries saved cards, and
+	// only once it has items — VTEX computes payment options from a value.
+	if client, of, err := resolveCart(g); err == nil {
+		if len(of.Items) > 0 {
 			cards, _ := client.GetSavedCards(of.OrderFormID)
-			if len(of.PaymentSystems) > 0 || len(cards) > 0 {
-				return of.PaymentSystems, cards, nil
-			}
+			return of.PaymentSystems, cards, nil
 		}
+		outfmt.Hint("Cart is empty, so saved cards cannot be listed — VTEX only exposes them once a cart has items.")
 	}
 
 	// Empty cart or not logged in: simulate instead of mutating the cart.
