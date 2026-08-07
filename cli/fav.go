@@ -19,6 +19,7 @@ type FavCmd struct {
 	Show   FavShowCmd   `cmd:"" default:"withargs" help:"Show favorites."`
 	Add    FavAddCmd    `cmd:"" help:"Save a product to favorites."`
 	Remove FavRemoveCmd `cmd:"" help:"Remove a product from favorites."`
+	Order  FavOrderCmd  `cmd:"" help:"Add every favorite to the cart (local lists only)."`
 }
 
 // favoritesList is the local list used by stores whose wishlist API is not
@@ -182,6 +183,26 @@ func (c *FavRemoveCmd) Run(g *Globals) error {
 		}
 	}
 	return errfmt.NotFound(fmt.Sprintf("%s is not in your wishlist", c.SKU))
+}
+
+// FavOrderCmd adds every favorite to the cart.
+//
+// This is allowed only when favorites are a local list the shopper curated,
+// which is the same thing `list order` does. It is refused for a store's own
+// wishlist: that is a list of things the shopper likes, not a shopping list,
+// and turning ten saved products into a cart is never what anyone means.
+type FavOrderCmd struct {
+	Qty    int  `help:"Quantity for each item." default:"1"`
+	DryRun bool `short:"n" help:"Show what would be added."`
+}
+
+func (c *FavOrderCmd) Run(g *Globals) error {
+	if g.Store.Wishlist.CanRead() {
+		return errfmt.Usage(fmt.Sprintf(
+			"%s favorites are the store's wishlist, not a shopping list — add items individually with: %s cart add <sku>",
+			g.Store.Label(), g.Store.Name))
+	}
+	return (&ListOrderCmd{Name: favoritesList, Qty: c.Qty, DryRun: c.DryRun}).Run(g)
 }
 
 // lookupSKU finds a catalog entry by SKU or product id.

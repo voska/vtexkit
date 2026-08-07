@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/voska/vtexkit/cli/errfmt"
@@ -79,5 +80,20 @@ func TestFavFallsBackToLocalListWithoutWishlistSupport(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].SKU != "33277" {
 		t.Errorf("local favorites = %+v, want the added SKU", items)
+	}
+}
+
+func TestFavOrderRefusedForServerWishlists(t *testing.T) {
+	// Bulk-ordering a curated local list is what list order does and is
+	// fine; bulk-ordering a store wishlist is not.
+	wl := store.Store{Name: "fr", Wishlist: store.WishlistHashes{View: "v", Add: "a", Remove: "r"}}
+	g := testGlobals(t, wl, &CLI{JSON: true})
+	err := (&FavOrderCmd{Qty: 1}).Run(g)
+	var typed *errfmt.Error
+	if !errors.As(err, &typed) || typed.Code != errfmt.ExitUsage {
+		t.Fatalf("err = %v, want exit 2", err)
+	}
+	if !strings.Contains(err.Error(), "cart add") {
+		t.Errorf("error must name the alternative, got: %v", err)
 	}
 }
