@@ -68,7 +68,7 @@ func TestConfigRoundTrip(t *testing.T) {
 	s := sandbox(t, "testkit")
 	want := &config.Config{
 		CEP: "01310100", Street: "Rua X", Number: "50",
-		Neighborhood: "Bela Vista", City: "Rio de Janeiro", State: "RJ",
+		Neighborhood: "Bela Vista", City: "São Paulo", State: "SP",
 		OrderFormID: "abc123",
 	}
 	if err := s.Save(want); err != nil {
