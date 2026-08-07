@@ -41,6 +41,8 @@ func TestValidateIDAcceptsRealIDs(t *testing.T) {
 }
 
 func TestFavShowOnFreshAccountIsEmptyNotMissing(t *testing.T) {
+	// No WishlistHash means the local-list path, which is what a store
+	// without a readable wishlist uses.
 	g := testGlobals(t, store.Store{Name: "fr"}, &CLI{JSON: true})
 	err := (&FavShowCmd{}).Run(g)
 	var typed *errfmt.Error
