@@ -35,6 +35,9 @@ type Client struct {
 	GatewayURL string
 	// ClearSaleURL overrides the ClearSale fingerprint host for tests.
 	ClearSaleURL string
+	// SettlementInterval overrides the delay between order settlement
+	// polls. Tests shorten it; zero means the default.
+	SettlementInterval time.Duration
 }
 
 func New(s store.Store, authToken string) *Client {
