@@ -257,3 +257,24 @@ func TestAwaitOrderSettlementFailsWhenTheOrderCannotBeRead(t *testing.T) {
 		t.Fatal("an unreadable order must not be reported as anything but unverified")
 	}
 }
+
+func TestGetOrderResolvesAGroupThatAnswersAnEmptyBody(t *testing.T) {
+	var paths []string
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path == "/api/oms/user/orders/1234-01" {
+			_, _ = w.Write([]byte(settledOrder))
+			return
+		}
+		// A group id can answer 200 with no order in it, which is not an
+		// order and must not be printed as one.
+		_, _ = w.Write([]byte(`{}`))
+	})
+	got, err := c.GetOrder("1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.OrderID != "1234-01" || len(paths) != 2 {
+		t.Errorf("order = %+v, paths = %v", got, paths)
+	}
+}

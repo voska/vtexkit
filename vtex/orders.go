@@ -2,12 +2,10 @@ package vtex
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/voska/vtexkit/cli/errfmt"
 	"github.com/voska/vtexkit/money"
 )
 
@@ -134,19 +132,22 @@ func (c *Client) ListOrders() ([]Order, error) {
 // Checkout reports the order *group*, which is the id a caller actually
 // holds, while OMS keys orders as "<group>-<seq>". The id is tried exactly
 // as given first, so a full order id behaves as it always has; the fallback
-// only makes the id the CLI printed usable.
+// only makes the id the CLI printed usable. A group id answers either 404
+// or a body with no order in it, and neither is an order.
 func (c *Client) GetOrder(orderID string) (*OrderDetail, error) {
 	detail, err := c.getOrder(orderID)
-	if err == nil {
+	if err == nil && detail.OrderID != "" {
 		return detail, nil
 	}
-	var typed *errfmt.Error
-	if errors.As(err, &typed) && typed.Code == errfmt.ExitNotFound && !strings.Contains(orderID, "-") {
-		if first, retryErr := c.getOrder(orderID + "-01"); retryErr == nil {
+	if !strings.Contains(orderID, "-") {
+		if first, retryErr := c.getOrder(orderID + "-01"); retryErr == nil && first.OrderID != "" {
 			return first, nil
 		}
 	}
-	return nil, err
+	if err != nil {
+		return nil, err
+	}
+	return detail, nil
 }
 
 func (c *Client) getOrder(orderID string) (*OrderDetail, error) {
