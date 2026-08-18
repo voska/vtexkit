@@ -60,6 +60,12 @@ type rawWindow struct {
 	Tax          money.Centavos `json:"tax"`
 }
 
+// windowKey identifies a delivery window by the exact timestamps VTEX
+// issued. Deduplicating the window list and matching a window back to the
+// SLA that owns it have to agree on what "the same window" means, so both
+// go through here.
+func windowKey(start, end string) string { return start + "|" + end }
+
 func (r rawWindow) toWindow(index int) DeliveryWindow {
 	start, _ := time.Parse(time.RFC3339, r.StartDateUtc)
 	end, _ := time.Parse(time.RFC3339, r.EndDateUtc)
@@ -110,7 +116,7 @@ func (c *Client) GetDeliveryWindows(orderFormID string) ([]DeliveryWindow, error
 	for _, li := range of.ShippingData.LogisticsInfo {
 		for _, sla := range li.SLAs {
 			for _, dw := range sla.AvailableDeliveryWindows {
-				key := dw.StartDateUtc + "|" + dw.EndDateUtc
+				key := windowKey(dw.StartDateUtc, dw.EndDateUtc)
 				if seen[key] {
 					continue
 				}

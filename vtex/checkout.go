@@ -18,6 +18,30 @@ type shippingInfo struct {
 	AddressID         string
 	SLAName           string
 	NumItems          int
+	// SLAs are the delivery options the store offered for this address,
+	// in the order it listed them, each with the windows it owns. VTEX
+	// validates a requested window against the selected SLA, so the two
+	// can only be chosen together.
+	SLAs []slaOption
+}
+
+// slaOption is one delivery option and the set of windows it offers.
+type slaOption struct {
+	ID      string
+	Windows map[string]bool
+}
+
+// slaForWindow returns the SLA offering this window, or "" when none does.
+// A store lists its scheduled option alongside its standard one and only the
+// scheduled one carries windows, so the first SLA is usually the wrong one.
+func (s *shippingInfo) slaForWindow(w DeliveryWindow) string {
+	key := windowKey(w.RawStart, w.RawEnd)
+	for _, opt := range s.SLAs {
+		if opt.Windows[key] {
+			return opt.ID
+		}
+	}
+	return ""
 }
 
 // getShippingInfo reads the address and SLA already on the cart. The address
@@ -35,7 +59,11 @@ func (c *Client) getShippingInfo(orderFormID string) (*shippingInfo, error) {
 			AvailableAddresses []map[string]any `json:"availableAddresses"`
 			LogisticsInfo      []struct {
 				SLAs []struct {
-					ID string `json:"id"`
+					ID                       string `json:"id"`
+					AvailableDeliveryWindows []struct {
+						StartDateUtc string `json:"startDateUtc"`
+						EndDateUtc   string `json:"endDateUtc"`
+					} `json:"availableDeliveryWindows"`
 				} `json:"slas"`
 			} `json:"logisticsInfo"`
 		} `json:"shippingData"`
@@ -62,8 +90,17 @@ func (c *Client) getShippingInfo(orderFormID string) (*shippingInfo, error) {
 		}
 	}
 
-	if len(resp.ShippingData.LogisticsInfo) > 0 && len(resp.ShippingData.LogisticsInfo[0].SLAs) > 0 {
-		info.SLAName = resp.ShippingData.LogisticsInfo[0].SLAs[0].ID
+	if len(resp.ShippingData.LogisticsInfo) > 0 {
+		for _, sla := range resp.ShippingData.LogisticsInfo[0].SLAs {
+			opt := slaOption{ID: sla.ID, Windows: map[string]bool{}}
+			for _, dw := range sla.AvailableDeliveryWindows {
+				opt.Windows[windowKey(dw.StartDateUtc, dw.EndDateUtc)] = true
+			}
+			info.SLAs = append(info.SLAs, opt)
+		}
+	}
+	if len(info.SLAs) > 0 {
+		info.SLAName = info.SLAs[0].ID
 	}
 	return info, nil
 }
@@ -94,15 +131,64 @@ func buildLogistics(info *shippingInfo, numItems int, window *DeliveryWindow) []
 	return out
 }
 
-func (c *Client) postShippingData(orderFormID string, logistics []map[string]any, addresses []map[string]any) error {
+// postShippingData applies the logistics payload and hands back whatever
+// VTEX answered with. That response is the only evidence that what was
+// requested is what stuck, so it is returned rather than discarded.
+func (c *Client) postShippingData(orderFormID string, logistics []map[string]any, addresses []map[string]any) ([]byte, error) {
 	payload := map[string]any{
 		"logisticsInfo":                    logistics,
 		"selectedAddresses":                addresses,
 		"clearAddressIfPostalCodeNotFound": false,
 	}
 	path := fmt.Sprintf("/api/checkout/pub/orderForm/%s/attachments/shippingData", orderFormID)
-	_, err := c.PostJSON(path, payload)
-	return err
+	return c.PostJSON(path, payload)
+}
+
+// logisticsEcho is the slice of the shipping response that says what VTEX
+// actually bound.
+type logisticsEcho struct {
+	SelectedSLA    string `json:"selectedSla"`
+	DeliveryWindow *struct {
+		StartDateUtc string `json:"startDateUtc"`
+		EndDateUtc   string `json:"endDateUtc"`
+	} `json:"deliveryWindow"`
+}
+
+// confirmWindow checks the shipping response against the window that was
+// requested.
+//
+// It refuses only on positive evidence of a different window. A store that
+// echoes no window at all leaves the question unanswerable, and an
+// unanswerable question must not fail a request VTEX accepted — the point
+// here is to catch a silent swap, not to invent one.
+func confirmWindow(body []byte, window DeliveryWindow) error {
+	var resp struct {
+		LogisticsInfo []logisticsEcho `json:"logisticsInfo"`
+		ShippingData  struct {
+			LogisticsInfo []logisticsEcho `json:"logisticsInfo"`
+		} `json:"shippingData"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+	entries := resp.ShippingData.LogisticsInfo
+	if len(entries) == 0 {
+		entries = resp.LogisticsInfo
+	}
+
+	want := windowKey(window.RawStart, window.RawEnd)
+	for _, li := range entries {
+		if li.DeliveryWindow == nil {
+			continue
+		}
+		got := windowKey(li.DeliveryWindow.StartDateUtc, li.DeliveryWindow.EndDateUtc)
+		if got != want {
+			return errfmt.Domain(fmt.Sprintf(
+				"store bound the delivery window starting %s, not the one requested (%s)",
+				li.DeliveryWindow.StartDateUtc, window.RawStart))
+		}
+	}
+	return nil
 }
 
 // SetAddress applies the account's saved delivery address to the cart.
@@ -120,7 +206,7 @@ func (c *Client) SetAddress(orderFormID string, numItems int) error {
 	if info.SLAName == "" {
 		return errfmt.Domain("store offers no delivery option for this address")
 	}
-	if err := c.postShippingData(orderFormID, buildLogistics(info, numItems, nil), info.SelectedAddresses); err != nil {
+	if _, err := c.postShippingData(orderFormID, buildLogistics(info, numItems, nil), info.SelectedAddresses); err != nil {
 		return fmt.Errorf("set address: %w", err)
 	}
 	return nil
@@ -138,10 +224,23 @@ func (c *Client) SetShippingWindow(orderFormID string, window DeliveryWindow, nu
 	if info.SLAName == "" {
 		return errfmt.Domain("store offers no delivery option for this address")
 	}
-	if err := c.postShippingData(orderFormID, buildLogistics(info, numItems, &window), info.SelectedAddresses); err != nil {
+	// The requested window belongs to exactly one of the store's delivery
+	// options. Binding the first one instead is what Zona Sul rejects with
+	// ORD006, and what silently prices a scheduled window as standard
+	// delivery when it does go through.
+	sla := info.slaForWindow(window)
+	if sla == "" {
+		return errfmt.Domain(fmt.Sprintf(
+			"no delivery option offers the window starting %s — re-read them with: %s delivery windows",
+			window.RawStart, c.store.Name))
+	}
+	info.SLAName = sla
+
+	body, err := c.postShippingData(orderFormID, buildLogistics(info, numItems, &window), info.SelectedAddresses)
+	if err != nil {
 		return fmt.Errorf("set shipping window: %w", err)
 	}
-	return nil
+	return confirmWindow(body, window)
 }
 
 type SavedCard struct {

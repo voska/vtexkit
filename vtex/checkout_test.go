@@ -2,20 +2,27 @@ package vtex_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/voska/vtexkit/cli/errfmt"
 	"github.com/voska/vtexkit/money"
 	"github.com/voska/vtexkit/store"
 	"github.com/voska/vtexkit/vtex"
 )
 
-// cartWithAddress is an order form carrying a saved address and one SLA.
+// cartWithAddress is an order form carrying a saved address and one SLA,
+// which advertises the window the shipping tests request — a window only
+// ever reaches SetShippingWindow by way of the SLA that offered it.
 const cartWithAddress = `{"orderFormId":"OF","items":[{},{}],"shippingData":{
 	"selectedAddresses":[{"addressId":"addr-1","postalCode":"22440-030"}],
-	"logisticsInfo":[{"slas":[{"id":"Entrega Agendada"}]}]}}`
+	"logisticsInfo":[{"slas":[{"id":"Entrega Agendada",
+		"availableDeliveryWindows":[
+			{"startDateUtc":"2026-08-08T14:00:00+00:00",
+			 "endDateUtc":"2026-08-08T16:00:59+00:00","price":700}]}]}]}}`
 
 func TestSetAddressUsesTheStoresOwnSLA(t *testing.T) {
 	var payload struct {
@@ -357,5 +364,139 @@ func TestSetPaymentPostsSystemID(t *testing.T) {
 	}
 	if payload.Payments[0].PaymentSystem != 125 || payload.Payments[0].Value != 15372 {
 		t.Errorf("payment = %+v", payload.Payments[0])
+	}
+}
+
+// cartWithScheduledSLA is the shape that produced ORD006 on 2026-08-17: the
+// first SLA the store lists offers no windows at all, and every window
+// `delivery windows` prints belongs to the second one.
+const cartWithScheduledSLA = `{"orderFormId":"OF","items":[{}],"shippingData":{
+	"selectedAddresses":[{"addressId":"addr-1"}],
+	"logisticsInfo":[{"slas":[
+		{"id":"Entrega Padrao","availableDeliveryWindows":[]},
+		{"id":"Entrega Agendada","availableDeliveryWindows":[
+			{"startDateUtc":"2026-08-21T14:01:00+00:00",
+			 "endDateUtc":"2026-08-21T16:00:59+00:00","price":700}]}]}]}}`
+
+var scheduledWindow = vtex.DeliveryWindow{
+	RawStart: "2026-08-21T14:01:00+00:00",
+	RawEnd:   "2026-08-21T16:00:59+00:00",
+	Price:    700,
+}
+
+// shippingDataServer answers the order form and captures the shipping payload.
+func shippingDataServer(t *testing.T, orderForm string, payload any) *vtex.Client {
+	t.Helper()
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/attachments/shippingData") {
+			_ = json.NewDecoder(r.Body).Decode(payload)
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		_, _ = w.Write([]byte(orderForm))
+	})
+	return c
+}
+
+type shippingPayload struct {
+	LogisticsInfo []struct {
+		SelectedSLA    string `json:"selectedSla"`
+		DeliveryWindow struct {
+			StartDateUtc string `json:"startDateUtc"`
+		} `json:"deliveryWindow"`
+	} `json:"logisticsInfo"`
+}
+
+func TestSetShippingWindowSelectsTheSLAOwningTheWindow(t *testing.T) {
+	var payload shippingPayload
+	c := shippingDataServer(t, cartWithScheduledSLA, &payload)
+
+	if err := c.SetShippingWindow("OF", scheduledWindow, 1); err != nil {
+		t.Fatal(err)
+	}
+	// Binding slas[0] here is what Zona Sul answers with ORD006: the
+	// window belongs to the scheduled SLA, so that is the SLA to select.
+	if got := payload.LogisticsInfo[0].SelectedSLA; got != "Entrega Agendada" {
+		t.Errorf("selectedSla = %q, want the SLA that offers the window", got)
+	}
+	if got := payload.LogisticsInfo[0].DeliveryWindow.StartDateUtc; got != scheduledWindow.RawStart {
+		t.Errorf("deliveryWindow.startDateUtc = %q", got)
+	}
+}
+
+func TestSetShippingWindowRefusesAWindowNoSLAOffers(t *testing.T) {
+	var posted bool
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/attachments/shippingData") {
+			posted = true
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		_, _ = w.Write([]byte(cartWithScheduledSLA))
+	})
+
+	stale := vtex.DeliveryWindow{
+		RawStart: "2026-08-20T09:00:00+00:00",
+		RawEnd:   "2026-08-20T11:00:59+00:00",
+	}
+	err := c.SetShippingWindow("OF", stale, 1)
+	if err == nil {
+		t.Fatal("a window no SLA offers must fail loudly, not fall back to another SLA")
+	}
+	// Silently binding the first SLA is how a scheduled window turns into
+	// standard delivery at a different price.
+	if posted {
+		t.Error("nothing must be posted once the window cannot be honored")
+	}
+	var typed *errfmt.Error
+	if !errors.As(err, &typed) || typed.Code != errfmt.ExitDomain {
+		t.Errorf("err = %v, want exit %d", err, errfmt.ExitDomain)
+	}
+	if !strings.Contains(err.Error(), "delivery windows") {
+		t.Errorf("error must name the recovery command, got: %v", err)
+	}
+}
+
+func TestSetShippingWindowRejectsAWindowTheStoreSwapped(t *testing.T) {
+	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/attachments/shippingData") {
+			// VTEX accepted the request but bound a different window.
+			_, _ = w.Write([]byte(`{"shippingData":{"logisticsInfo":[
+				{"selectedSla":"Entrega Padrao","deliveryWindow":{
+					"startDateUtc":"2026-08-21T18:01:00+00:00",
+					"endDateUtc":"2026-08-21T20:00:59+00:00"}}]}}`))
+			return
+		}
+		_, _ = w.Write([]byte(cartWithScheduledSLA))
+	})
+	err := c.SetShippingWindow("OF", scheduledWindow, 1)
+	if err == nil {
+		t.Fatal("a store that bound a different window must not be reported as success")
+	}
+	if !strings.Contains(err.Error(), "18:01") {
+		t.Errorf("error must name the window that actually stuck, got: %v", err)
+	}
+}
+
+func TestSetShippingWindowAcceptsAStoreThatEchoesNoWindow(t *testing.T) {
+	var payload shippingPayload
+	c := shippingDataServer(t, cartWithScheduledSLA, &payload)
+	// An empty answer proves nothing either way, and an unverifiable
+	// answer must not block a request VTEX accepted.
+	if err := c.SetShippingWindow("OF", scheduledWindow, 1); err != nil {
+		t.Fatalf("an unverifiable response must not fail the request: %v", err)
+	}
+}
+
+func TestSetAddressStillUsesTheFirstSLA(t *testing.T) {
+	var payload shippingPayload
+	c := shippingDataServer(t, cartWithScheduledSLA, &payload)
+	// SetAddress sends no window, so there is nothing to match against:
+	// the store's own first option stays the right answer.
+	if err := c.SetAddress("OF", 1); err != nil {
+		t.Fatal(err)
+	}
+	if got := payload.LogisticsInfo[0].SelectedSLA; got != "Entrega Padrao" {
+		t.Errorf("selectedSla = %q, want the store's first option", got)
 	}
 }
