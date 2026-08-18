@@ -209,12 +209,72 @@ func (c *CheckoutRunCmd) Run(g *Globals) error {
 		}
 	}
 
-	if g.Formatter().IsJSON() {
-		return g.Formatter().Print(map[string]any{
-			"orderId": tx.OrderGroup, "status": "placed", "total": total,
-		})
+	return c.report(g, client, tx, useCard, total)
+}
+
+// report says what the store says about the order, never what this command
+// asked it to do.
+//
+// The 2026-08-18 Frescatto order printed "placed" here the instant the
+// payment request returned; the gateway never settled it and cancelled it
+// five minutes later, with no card charged and nothing delivered. A card
+// payment this command submitted is therefore only a success once the order
+// is read back authorized — and if it cannot be read back at all, the answer
+// is "unverified", which is not a success either.
+func (c *CheckoutRunCmd) report(g *Globals, client *vtex.Client, tx *vtex.TransactionResult,
+	paidByCard bool, total money.Centavos) error {
+	var (
+		detail *vtex.OrderDetail
+		err    error
+	)
+	if paidByCard {
+		outfmt.Hint("Confirming settlement with the store...")
+		detail, err = client.AwaitOrderSettlement(tx.OrderGroup)
+	} else {
+		// Nothing was charged here — the store still has to collect the
+		// payment, so there is no settlement to wait for, only the order
+		// to confirm.
+		detail, err = client.GetOrder(tx.OrderGroup)
 	}
-	outfmt.Success("Order placed. ID: %s", tx.OrderGroup)
+
+	status, authorized, tid := "unverified", false, ""
+	if detail != nil {
+		status, authorized, tid = detail.Status, detail.Authorized, detail.TID
+	} else {
+		outfmt.Warn("could not read the order back: %v", err)
+	}
+
+	record := map[string]any{
+		"orderId":    tx.OrderGroup,
+		"placed":     true,
+		"status":     status,
+		"authorized": authorized,
+		"total":      total,
+	}
+	if tid != "" {
+		record["tid"] = tid
+	}
+
+	if g.Formatter().IsJSON() {
+		if printErr := g.Formatter().Print(record); printErr != nil {
+			return printErr
+		}
+	} else if authorized {
+		outfmt.Success("Order placed and payment authorized. ID: %s (%s, tid %s)",
+			tx.OrderGroup, status, tid)
+	} else {
+		outfmt.Success("Order placed. ID: %s (%s, payment not authorized yet)",
+			tx.OrderGroup, status)
+	}
+
+	if paidByCard && !authorized {
+		// Re-running checkout would place a second order, so the message
+		// has to point at the read command instead.
+		return errfmt.Domain(fmt.Sprintf(
+			"order %s: card payment is %s, not authorized — no money has settled. "+
+				"Check it with: %s orders %s. Do not re-run checkout; that places a second order.",
+			tx.OrderGroup, status, g.Store.Name, tx.OrderGroup))
+	}
 	return nil
 }
 
