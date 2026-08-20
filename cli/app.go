@@ -44,6 +44,7 @@ type CLI struct {
 	Delivery  DeliveryCmd  `cmd:"" help:"Delivery windows and simulation."`
 	Checkout  CheckoutCmd  `cmd:"" help:"Preview or place an order."`
 	Orders    OrdersCmd    `cmd:"" help:"List recent orders."`
+	Subs      SubsCmd      `cmd:"" help:"Manage recurring subscriptions."`
 	Store     StoreCmd     `cmd:"" help:"Store descriptor and live capabilities."`
 	Doctor    DoctorCmd    `cmd:"" help:"Check whether ordering will work, and what to fix."`
 	Schema    SchemaCmd    `cmd:"" help:"Dump the command tree as JSON."`
