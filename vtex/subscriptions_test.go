@@ -95,6 +95,50 @@ func TestListSubscriptionsParsesBareArray(t *testing.T) {
 	}
 }
 
+func TestListSubscriptionsPagesUntilShortPage(t *testing.T) {
+	// RNS caps the page size at 15, so a shopper with more than that would
+	// silently lose the rest of the list on a single-request implementation.
+	var gotPages []string
+	c := newSubsClient(t, func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		gotPages = append(gotPages, page)
+		n := 15 // full page
+		if page == "2" {
+			n = 3 // short page ends the walk
+		}
+		items := make([]string, n)
+		for i := range items {
+			items[i] = subscriptionJSON
+		}
+		_, _ = w.Write([]byte("[" + strings.Join(items, ",") + "]"))
+	})
+	subs, err := c.ListSubscriptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 18 {
+		t.Errorf("got %d subscriptions, want 18 across two pages", len(subs))
+	}
+	if len(gotPages) != 2 || gotPages[0] != "1" || gotPages[1] != "2" {
+		t.Errorf("pages requested = %v, want [1 2]", gotPages)
+	}
+}
+
+func TestListSubscriptionsRefusesToTruncate(t *testing.T) {
+	// A server that never returns a short page must produce an error, not a
+	// quietly capped list that downstream cannot distinguish from complete.
+	c := newSubsClient(t, func(w http.ResponseWriter, r *http.Request) {
+		items := make([]string, 15)
+		for i := range items {
+			items[i] = subscriptionJSON
+		}
+		_, _ = w.Write([]byte("[" + strings.Join(items, ",") + "]"))
+	})
+	if _, err := c.ListSubscriptions(); err == nil {
+		t.Fatal("an unbounded list must fail rather than truncate")
+	}
+}
+
 func TestListSubscriptionsSendsAuthCookie(t *testing.T) {
 	var gotCookie string
 	c := newSubsClient(t, func(w http.ResponseWriter, r *http.Request) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/voska/vtexkit/cli/errfmt"
 	"github.com/voska/vtexkit/money"
@@ -18,6 +19,16 @@ const (
 	SubscriptionCanceled = "CANCELED"
 	SubscriptionExpired  = "EXPIRED"
 	SubscriptionMissing  = "MISSING"
+)
+
+const (
+	// subscriptionsPageSize is RNS's page size for the subscription list.
+	// The API's size parameter both defaults to 15 and caps at 15, so this
+	// cannot be raised — only paged through.
+	subscriptionsPageSize = 15
+	// maxSubscriptionPages bounds the paging loop so a server that keeps
+	// returning full pages cannot spin forever.
+	maxSubscriptionPages = 100
 )
 
 // Frequency is how often a subscription reorders: interval 2 with
@@ -107,16 +118,28 @@ func (c *Client) subscriptionsURL(path string) string {
 // scopes the result to its own customer — verified against a live account —
 // so passing one would only cost an extra round trip to learn our own email.
 func (c *Client) ListSubscriptions() ([]Subscription, error) {
-	body, err := c.getAbsolute(c.subscriptionsURL(""))
-	if err != nil {
-		return nil, fmt.Errorf("list subscriptions: %w", err)
+	var all []Subscription
+	for page := 1; page <= maxSubscriptionPages; page++ {
+		q := url.Values{"page": {strconv.Itoa(page)}}
+		body, err := c.getAbsolute(c.subscriptionsURL("?" + q.Encode()))
+		if err != nil {
+			return nil, fmt.Errorf("list subscriptions: %w", err)
+		}
+		// RNS returns a bare array, unlike the OMS list's {"list":[…]}.
+		var batch []Subscription
+		if err := json.Unmarshal(body, &batch); err != nil {
+			return nil, fmt.Errorf("list subscriptions parse: %w", err)
+		}
+		all = append(all, batch...)
+		if len(batch) < subscriptionsPageSize {
+			return all, nil
+		}
 	}
-	// RNS returns a bare array here, unlike the OMS order list's {"list":[…]}.
-	var subs []Subscription
-	if err := json.Unmarshal(body, &subs); err != nil {
-		return nil, fmt.Errorf("list subscriptions parse: %w", err)
-	}
-	return subs, nil
+	// Never truncate quietly: a short list that looks complete is worse than
+	// a failure, because nothing downstream can tell the difference.
+	return nil, fmt.Errorf(
+		"list subscriptions: more than %d subscriptions; refusing to return a partial list",
+		maxSubscriptionPages*subscriptionsPageSize)
 }
 
 func (c *Client) GetSubscription(id string) (*Subscription, error) {
