@@ -127,6 +127,17 @@ func (s Store) AccountName() string {
 	return host
 }
 
+// AccountBaseURL is the VTEX platform host for this account.
+//
+// Nearly every storefront API answers on the store's own domain, but the
+// Subscriptions (RNS) API resolves the account from the request subdomain.
+// On a www.<store> vanity domain it therefore derives the account "www" and
+// rejects the call with HTTP 400, so those endpoints must be addressed here
+// instead.
+func (s Store) AccountBaseURL() string {
+	return "https://" + s.AccountName() + ".vtexcommercestable.com.br"
+}
+
 // AuthCookieName is the VTEX ID cookie this store issues.
 func (s Store) AuthCookieName() string {
 	return "VtexIdclientAutCookie_" + s.AccountName()

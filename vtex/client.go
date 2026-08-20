@@ -38,6 +38,9 @@ type Client struct {
 	// SettlementInterval overrides the delay between order settlement
 	// polls. Tests shorten it; zero means the default.
 	SettlementInterval time.Duration
+	// SubscriptionsURL overrides the Subscriptions (RNS) host. Tests set it;
+	// empty means the account host from store.AccountBaseURL.
+	SubscriptionsURL string
 }
 
 func New(s store.Store, authToken string) *Client {
@@ -139,6 +142,16 @@ func (c *Client) PostForm(path string, values url.Values) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return c.do(req)
+}
+
+// getAbsolute fetches a full URL rather than a storefront path. The
+// Subscriptions API answers only on the account host, so it cannot use Get.
+func (c *Client) getAbsolute(absoluteURL string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, absoluteURL, nil)
+	if err != nil {
+		return nil, err
+	}
 	return c.do(req)
 }
 
