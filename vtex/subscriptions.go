@@ -137,6 +137,13 @@ func (c *Client) patchSubscription(id string, patch map[string]any) (*Subscripti
 	if err != nil {
 		return nil, err
 	}
+	// A PATCH that changes nothing — resuming an already-active subscription,
+	// unskipping one that was not skipped — answers 304 with an empty body,
+	// which the OpenAPI spec does not mention. That is a success, not a
+	// no-op error, so read the current state back and report it.
+	if len(body) == 0 {
+		return c.GetSubscription(id)
+	}
 	var sub Subscription
 	if err := json.Unmarshal(body, &sub); err != nil {
 		return nil, fmt.Errorf("update subscription parse: %w", err)

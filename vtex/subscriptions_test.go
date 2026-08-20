@@ -182,6 +182,31 @@ func TestSetSubscriptionStatusRefusesCancel(t *testing.T) {
 	}
 }
 
+func TestPatchNotModifiedReadsBackState(t *testing.T) {
+	// Resuming an already-active subscription answers 304 with an empty
+	// body. Treating that as a parse failure made `subs resume` report an
+	// error for a request that had in fact succeeded.
+	var calls []string
+	c := newSubsClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method)
+		if r.Method == http.MethodPatch {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		_, _ = w.Write([]byte(subscriptionJSON))
+	})
+	got, err := c.SetSubscriptionStatus("ABC", vtex.SubscriptionActive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != vtex.SubscriptionActive {
+		t.Errorf("Status = %q", got.Status)
+	}
+	if len(calls) != 2 || calls[1] != http.MethodGet {
+		t.Errorf("calls = %v, want PATCH then GET", calls)
+	}
+}
+
 func TestSkipSubscriptionTogglesIsSkipped(t *testing.T) {
 	for _, skip := range []bool{true, false} {
 		var gotBody map[string]any
