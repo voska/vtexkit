@@ -133,3 +133,99 @@ func TestProbeSurfacesHTTPErrors(t *testing.T) {
 		t.Fatal("HTTP 403 must produce an error, not empty capabilities")
 	}
 }
+
+// prezunicServer reproduces the shape that broke `prezunic auth code send`:
+// a scoped start call advertising only the store's own OAuth provider, and an
+// unscoped one advertising the access key that VTEX ID actually accepts.
+func prezunicServer(t *testing.T, hits *int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*hits++
+		if r.URL.Query().Get("scope") != "" {
+			_, _ = w.Write([]byte(`{"authenticationToken":"SCOPED",
+				"showClassicAuthentication":false,"showAccessKeyAuthentication":false,
+				"oauthProviders":[{"providerName":"Prezunic Login"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"authenticationToken":"BARE",
+			"showClassicAuthentication":false,"showAccessKeyAuthentication":true,
+			"oauthProviders":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestProbeFallsBackToUnscopedWhenScopedHidesEverything(t *testing.T) {
+	hits := 0
+	srv := prezunicServer(t, &hits)
+	caps, err := store.Probe(context.Background(), srv.Client(), srv.URL, "prezunic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !caps.AccessKey {
+		t.Error("access key is offered unscoped; refusing it blocks the only way in")
+	}
+	// classic is NOT merged: the unscoped call claims it for stores whose
+	// classic login is documented as disabled, and that cannot be verified
+	// from outside.
+	if caps.Classic {
+		t.Error("classic must stay as the scoped call reported it")
+	}
+	// The custom provider must survive the merge — it is why a driver may
+	// still be worth writing for this store.
+	if !caps.HasOAuthProvider("Prezunic Login") {
+		t.Errorf("oauth providers = %v, want the scoped provider kept", caps.OAuthProviders)
+	}
+	// A validate reusing a token from a different start is rejected by VTEX,
+	// so the token must be the one that advertised the capability.
+	if caps.AuthenticationToken != "BARE" {
+		t.Errorf("AuthenticationToken = %q, want the unscoped token", caps.AuthenticationToken)
+	}
+	if hits != 2 {
+		t.Errorf("hits = %d, want 2", hits)
+	}
+}
+
+func TestProbeDoesNotRefetchWhenScopedAlreadyWorks(t *testing.T) {
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		_, _ = w.Write([]byte(`{"authenticationToken":"SCOPED",
+			"showClassicAuthentication":true,"showAccessKeyAuthentication":true,
+			"oauthProviders":[{"providerName":"Google"}]}`))
+	}))
+	defer srv.Close()
+	caps, err := store.Probe(context.Background(), srv.Client(), srv.URL, "frescatto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Frescatto, Zona Sul, Mantiqueira and Venancio all answer the scoped
+	// call: they must not pay for a second request.
+	if hits != 1 {
+		t.Errorf("hits = %d, want 1 — no fallback when the scoped answer is usable", hits)
+	}
+	if caps.AuthenticationToken != "SCOPED" || !caps.Classic {
+		t.Errorf("caps = %+v", caps)
+	}
+}
+
+func TestProbeKeepsOAuthOnlyStoreUnchanged(t *testing.T) {
+	// Zona Sul's shape: a real custom provider and genuinely no generic
+	// method. The fallback must not invent one.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"authenticationToken":"T",
+			"showClassicAuthentication":false,"showAccessKeyAuthentication":false,
+			"oauthProviders":[{"providerName":"Zona Sul"}]}`))
+	}))
+	defer srv.Close()
+	caps, err := store.Probe(context.Background(), srv.Client(), srv.URL, "zonasul")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caps.Classic || caps.AccessKey {
+		t.Errorf("caps = %+v, want no generic method", caps)
+	}
+	if !caps.HasOAuthProvider("Zona Sul") {
+		t.Error("the custom provider must survive")
+	}
+}

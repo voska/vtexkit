@@ -34,16 +34,57 @@ func (c *Capabilities) HasOAuthProvider(name string) bool {
 
 // Probe reads a store's auth capabilities from the public VTEX ID
 // authentication-start endpoint. No credentials required, no side effects.
+//
+// It asks twice when it has to. Scoping the call to the account is what makes
+// a store's custom OAuth provider visible, but some stores answer a scoped
+// call with only that provider, hiding an access key VTEX ID still accepts.
+// Prezunic reports classic=false, accessKey=false and a "Prezunic Login"
+// provider when scoped, yet unscoped it reports accessKey=true — and
+// accesskey/send really does email a code. Believing the scoped answer alone
+// made the CLI refuse the only login that store has.
+//
+// Only the access key is taken from the unscoped answer. The unscoped call
+// also reports classic=true for stores whose classic login is documented as
+// disabled, and that claim could not be confirmed: the classic validate
+// endpoint answers WrongCredentials for an unregistered address whether or
+// not the method is enabled, so there is no way to tell from outside. An
+// unverified capability would route a login down a path that may not work,
+// so classic is left exactly as the scoped call reported it.
 func Probe(ctx context.Context, c HTTPDoer, baseURL, account string) (*Capabilities, error) {
-	q := url.Values{
-		"scope":       {account},
-		"callbackUrl": {baseURL + "/api/vtexid/oauth/finish"},
-		"user":        {""},
-		"locale":      {"pt-BR"},
-		"accountName": {account},
+	caps, err := probeOnce(ctx, c, baseURL, account, true)
+	if err != nil {
+		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		baseURL+"/api/vtexid/pub/authentication/start?"+q.Encode(), nil)
+	if caps.Classic || caps.AccessKey {
+		return caps, nil
+	}
+	// No generic method under the account scope. Before concluding the store
+	// needs a driver, ask unscoped.
+	bare, bareErr := probeOnce(ctx, c, baseURL, account, false)
+	if bareErr != nil || !bare.AccessKey {
+		return caps, nil
+	}
+	caps.AccessKey = true
+	// The token must come from the same start call that advertised the
+	// method: VTEX rejects a validate whose token came from a different
+	// start, so taking the capability without its token would fail later.
+	caps.AuthenticationToken = bare.AuthenticationToken
+	return caps, nil
+}
+
+func probeOnce(ctx context.Context, c HTTPDoer, baseURL, account string, scoped bool) (*Capabilities, error) {
+	endpoint := baseURL + "/api/vtexid/pub/authentication/start"
+	if scoped {
+		q := url.Values{
+			"scope":       {account},
+			"callbackUrl": {baseURL + "/api/vtexid/oauth/finish"},
+			"user":        {""},
+			"locale":      {"pt-BR"},
+			"accountName": {account},
+		}
+		endpoint += "?" + q.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
