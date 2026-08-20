@@ -13,10 +13,13 @@ import (
 	"github.com/voska/vtexkit/vtex"
 )
 
-// subscriptionJSON is one subscription as grupomantiqueira actually returns
-// it, trimmed to the fields this package reads. The price encoding is the
-// point: 6590.0 is R$65,90 in centavos, matching a shelf price of R$64,90 —
-// not 6590 reais.
+// subscriptionJSON mirrors the shape grupomantiqueira really returns, trimmed
+// to the fields this package reads, with every identifier and the email
+// replaced by synthetic values — a subscription ID is account data, and this
+// repo's fixtures carry public product data only.
+//
+// The price encoding is the point: 6590.0 is R$65,90 in centavos, matching a
+// shelf price of R$64,90 — not 6590 reais.
 const subscriptionJSON = `{
   "id":"7A1C4E9B2F6D48A3B5C7E1F09D2B6A84",
   "customerEmail":"shopper@example.com",
