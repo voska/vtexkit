@@ -108,18 +108,25 @@ func (c *CartAddCmd) Run(g *Globals) error {
 
 // discoverSeller finds which seller stocks a SKU. Sellers are per-item, so
 // this is a lookup rather than a store-wide constant.
+//
+// Resolved through the exact SKU filter. It used to scan the first 50
+// free-text results, which could not return the wrong item — it compared
+// SKUs — but reported a real SKU as missing whenever the ranker buried it
+// past the window. This is the lookup every cart line goes through, so a
+// spurious miss here is an order that quietly loses an item.
 func discoverSeller(client *vtex.Client, sku string) (string, error) {
-	results, err := client.Search(sku, 50)
+	found, ok, err := client.SKUByID(sku)
 	if err != nil {
 		return "", err
 	}
-	for _, r := range results {
-		if r.SKU == sku {
-			return r.Seller, nil
-		}
+	if ok {
+		return found.Seller, nil
 	}
-	return "", errfmt.NotFound(fmt.Sprintf(
-		"SKU %s not found in the catalog — pass --seller to add it anyway", sku))
+	// --seller bypasses this lookup, so it is the right hint for an id the
+	// catalog simply does not carry. It is withheld when the id turns out
+	// to be a product id: overriding the seller there would put a SKU the
+	// store does not sell into the cart.
+	return "", notASKU(client, sku, "pass --seller to add it anyway")
 }
 
 type CartUpdateCmd struct {

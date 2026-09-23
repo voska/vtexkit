@@ -46,11 +46,12 @@ func truncate(s string, n int) string {
 }
 
 type ProductCmd struct {
-	SKU string `arg:"" help:"SKU to look up."`
+	SKU string `arg:"" help:"SKU to look up. Not a product id — the two are different sequences."`
 }
 
-// Run finds a SKU by searching for it. VTEX has no public single-SKU
-// endpoint that returns pricing, so this filters a search instead.
+// Run resolves a SKU through the catalog's exact skuId filter. An id that
+// is not a SKU fails; it is never answered from the product-id sequence,
+// which names a different item.
 func (c *ProductCmd) Run(g *Globals) error {
 	if err := validateID(c.SKU); err != nil {
 		return err
