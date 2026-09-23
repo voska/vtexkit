@@ -227,7 +227,7 @@ func lookupSKU(client *vtex.Client, sku string) (*vtex.SearchResult, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, notASKU(client, sku)
+		return nil, notASKU(client, sku, "")
 	}
 	return &found, nil
 }
@@ -236,8 +236,17 @@ func lookupSKU(client *vtex.Client, sku string) (*vtex.SearchResult, error) {
 // belong to the product-id sequence. The wrong namespace is the common
 // mistake, so the error carries the SKU to use instead rather than leaving
 // the caller to guess that the two numbers are unrelated.
-func notASKU(client *vtex.Client, sku string) error {
+//
+// unknownHint is appended only when the catalog knows the id in neither
+// sequence, which is the one case where a caller's workaround is sound. A
+// hint offered alongside "that is a product id" would be advice to force
+// through an id the store does not sell.
+func notASKU(client *vtex.Client, sku, unknownHint string) error {
 	missing := errfmt.NotFound(fmt.Sprintf("SKU %s not found in the catalog", sku))
+	if unknownHint != "" {
+		missing = errfmt.NotFound(fmt.Sprintf(
+			"SKU %s not found in the catalog — %s", sku, unknownHint))
+	}
 
 	// The id may name a real SKU that simply has no seller with stock.
 	// Reporting that as "not in the catalog" sends the caller hunting for

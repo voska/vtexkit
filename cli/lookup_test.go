@@ -12,6 +12,7 @@ import (
 
 	"github.com/voska/vtexkit/cli/errfmt"
 	"github.com/voska/vtexkit/store"
+	"github.com/voska/vtexkit/vtex"
 )
 
 // These fixtures are real Zona Sul catalog entries recorded 2026-09-23, and
@@ -44,8 +45,14 @@ func collisionStore(t *testing.T, withWine bool) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "intelligent-search") {
-			// Live ranking for query=36941: the salmon product first.
-			_, _ = w.Write([]byte(`{"products":[` + salmonByProduct + `,` + wineBySKU + `]}`))
+			// Live ranking for query=36941: the salmon product first. The
+			// wine appears only when this store stocks it, so free text
+			// and the exact filter never disagree about what exists.
+			products := salmonByProduct
+			if withWine {
+				products += "," + wineBySKU
+			}
+			_, _ = w.Write([]byte(`{"products":[` + products + `]}`))
 			return
 		}
 		fq, _ := url.QueryUnescape(r.URL.Query().Get("fq"))
@@ -280,4 +287,78 @@ func TestProductDistinguishesOutOfStockFromMissing(t *testing.T) {
 	if !errors.As(err, &e) || e.Code != errfmt.ExitNotFound {
 		t.Errorf("err = %v, want exit %d", err, errfmt.ExitNotFound)
 	}
+}
+
+// discoverSeller decides which seller a cart line is bought from, so it is
+// the id lookup with money behind it. It matched on SKU only and so could
+// not return the wrong item, but it read free-text search: a valid SKU that
+// did not rank inside the window came back as "not found in the catalog".
+func TestDiscoverSellerUsesTheExactFilterNotFreeTextSearch(t *testing.T) {
+	// Free text for this id ranks the salmon product and never surfaces
+	// the wine SKU, which is exactly what the live store does.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "intelligent-search") || r.URL.Query().Get("ft") != "" {
+			t.Errorf("a cart lookup must not read free-text search: %s", r.URL)
+			_, _ = w.Write([]byte(`{"products":[` + salmonByProduct + `]}`))
+			return
+		}
+		if fq, _ := url.QueryUnescape(r.URL.Query().Get("fq")); fq == "skuId:36941" {
+			_, _ = w.Write([]byte(`[` + wineBySKU + `]`))
+			return
+		}
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(srv.Close)
+
+	seller, err := discoverSeller(testClient(t, srv), "36941")
+	if err != nil {
+		t.Fatalf("SKU 36941 is in the catalog and purchasable: %v", err)
+	}
+	if seller != "zonasulzsa" {
+		t.Errorf("seller = %q, want the one the catalog reported", seller)
+	}
+}
+
+// Adding a product id to a cart is the mistake with the worst ending, so
+// the refusal has to name the real SKU — and must not offer --seller,
+// which would put an id the store does not sell into the cart.
+func TestDiscoverSellerRefusesAProductIDWithoutOfferingSellerOverride(t *testing.T) {
+	_, err := discoverSeller(testClient(t, collisionStore(t, false)), "36941")
+	if err == nil {
+		t.Fatal("a product id must not resolve to a seller")
+	}
+	msg := err.Error()
+	for _, want := range []string{"product id", "37014"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q must mention %q", msg, want)
+		}
+	}
+	if strings.Contains(msg, "--seller") {
+		t.Errorf("error %q offers --seller for a product id; that would cart a SKU "+
+			"the store does not sell", msg)
+	}
+}
+
+// The escape hatch stays for an id the catalog genuinely does not know:
+// marketplace SKUs have always been addable this way.
+func TestDiscoverSellerKeepsTheSellerOverrideHintForUnknownIDs(t *testing.T) {
+	_, err := discoverSeller(testClient(t, collisionStore(t, true)), "999999999")
+	if err == nil {
+		t.Fatal("want not found")
+	}
+	if !strings.Contains(err.Error(), "--seller") {
+		t.Errorf("error %q dropped the --seller escape hatch", err.Error())
+	}
+	var e *errfmt.Error
+	if !errors.As(err, &e) || e.Code != errfmt.ExitNotFound {
+		t.Errorf("err = %v, want exit %d", err, errfmt.ExitNotFound)
+	}
+}
+
+// testClient builds an unauthenticated client pointed at a test server.
+func testClient(t *testing.T, srv *httptest.Server) *vtex.Client {
+	t.Helper()
+	return vtex.New(store.Store{
+		Name: "zonasul", DisplayName: "Zona Sul", Account: "zonasul", BaseURL: srv.URL,
+	}, "")
 }
