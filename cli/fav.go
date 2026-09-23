@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/voska/vtexkit/cli/errfmt"
 	"github.com/voska/vtexkit/cli/outfmt"
@@ -116,8 +117,11 @@ func (c *FavAddCmd) Run(g *Globals) error {
 	if err != nil {
 		return err
 	}
+	// Compared against the SKU only. A saved item whose *product* id equals
+	// this SKU is a different grocery, and reporting it as already saved
+	// would silently skip the save the caller asked for.
 	for _, it := range items {
-		if it.SKU == c.SKU || it.ProductID == c.SKU {
+		if it.SKU == c.SKU {
 			outfmt.Hint("%s is already saved: %s", c.SKU, it.Title)
 			return nil
 		}
@@ -164,8 +168,12 @@ func (c *FavRemoveCmd) Run(g *Globals) error {
 	// RemoveFromList takes the wishlist item's own id, not the SKU, so the
 	// list has to be read first. Removing by SKU directly would delete
 	// whichever item happened to sit at that numeric position.
+	//
+	// Matched on the SKU only, for the same reason: an item whose product
+	// id collides with this SKU is a different grocery, and deleting it
+	// would be a silent wrong-item removal.
 	for _, it := range items {
-		if it.SKU == c.SKU || it.ProductID == c.SKU {
+		if it.SKU == c.SKU {
 			if c.DryRun {
 				return g.Formatter().Print(map[string]any{
 					"action": "fav-remove", "item": it, "list": listName, "dryRun": true,
@@ -205,16 +213,52 @@ func (c *FavOrderCmd) Run(g *Globals) error {
 	return (&ListOrderCmd{Name: favoritesList, Qty: c.Qty, DryRun: c.DryRun}).Run(g)
 }
 
-// lookupSKU finds a catalog entry by SKU or product id.
-func lookupSKU(client *vtex.Client, id string) (*vtex.SearchResult, error) {
-	results, err := client.Search(id, 50)
+// lookupSKU finds a catalog entry by SKU, and only by SKU.
+//
+// It used to accept a product id too, on the theory that a caller holding
+// either id wanted the same thing. They are two independent sequences that
+// overlap: on Zona Sul, 36941 is a wine as a SKU and a salmon fillet as a
+// product id. Matching either one and returning whichever the ranker put
+// first answered a different question than the one asked, and a kitchen
+// ordering by SKU got the wrong groceries.
+func lookupSKU(client *vtex.Client, sku string) (*vtex.SearchResult, error) {
+	found, ok, err := client.SKUByID(sku)
 	if err != nil {
 		return nil, err
 	}
-	for _, r := range results {
-		if r.SKU == id || r.ProductID == id {
-			return &r, nil
-		}
+	if !ok {
+		return nil, notASKU(client, sku)
 	}
-	return nil, errfmt.NotFound(fmt.Sprintf("SKU %s not found in the catalog", id))
+	return &found, nil
+}
+
+// notASKU reports a SKU miss, naming the product when the id turns out to
+// belong to the product-id sequence. The wrong namespace is the common
+// mistake, so the error carries the SKU to use instead rather than leaving
+// the caller to guess that the two numbers are unrelated.
+func notASKU(client *vtex.Client, sku string) error {
+	missing := errfmt.NotFound(fmt.Sprintf("SKU %s not found in the catalog", sku))
+
+	// The id may name a real SKU that simply has no seller with stock.
+	// Reporting that as "not in the catalog" sends the caller hunting for
+	// a typo, and reporting it as a product-id mix-up would be worse: it
+	// names a different item entirely.
+	if title, ok, err := client.SKUTitle(sku); err == nil && ok {
+		return errfmt.NotFound(fmt.Sprintf(
+			"SKU %s (%s) has no seller with stock right now", sku, title))
+	}
+
+	// A failed probe must not mask the answer we already have: the SKU is
+	// missing either way, and only the explanation is lost.
+	name, skus, err := client.ProductSKUs(sku)
+	if err != nil || len(skus) == 0 {
+		return missing
+	}
+	label := fmt.Sprintf("its SKU is %s", skus[0])
+	if len(skus) > 1 {
+		label = fmt.Sprintf("its SKUs are %s", strings.Join(skus, ", "))
+	}
+	return errfmt.NotFound(fmt.Sprintf(
+		"SKU %s not found in the catalog — %s is the product id of %q, and %s",
+		sku, sku, name, label))
 }
