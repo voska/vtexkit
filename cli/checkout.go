@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/voska/vtexkit/cli/errfmt"
@@ -123,7 +124,7 @@ type CheckoutRunCmd struct {
 	Confirm bool   `help:"Actually place the order. Required safety gate."`
 }
 
-func (c *CheckoutRunCmd) Run(g *Globals) error {
+func (c *CheckoutRunCmd) Run(g *Globals) (runErr error) {
 	client, of, err := resolveCart(g)
 	if err != nil {
 		return err
@@ -196,6 +197,24 @@ func (c *CheckoutRunCmd) Run(g *Globals) error {
 	if err != nil {
 		return err
 	}
+	// An acknowledged order consumes this cart even if payment or settlement
+	// fails later. Keep previews and rejected placements untouched.
+	defer func() {
+		resetErr := client.RemoveAllItems(of.OrderFormID)
+		if resetErr == nil {
+			var cleared *vtex.OrderForm
+			cleared, resetErr = client.GetOrderForm(of.OrderFormID)
+			if resetErr == nil && len(cleared.Items) != 0 {
+				resetErr = fmt.Errorf("cart still contains %d item(s)", len(cleared.Items))
+			}
+		}
+		if resetErr != nil {
+			runErr = errfmt.Wrap(errfmt.ExitDomain,
+				fmt.Sprintf("order %s was submitted, but cart reset is unverified. "+
+					"Do not re-run checkout. Check it with: %s orders %s; inspect the cart with: %s cart show",
+					tx.OrderGroup, g.Store.Name, tx.OrderGroup, g.Store.Name), errors.Join(runErr, resetErr))
+		}
+	}()
 
 	if useCard {
 		outfmt.Hint("Processing card payment with %s %s...", card.PaymentSystemName, card.CardNumber)

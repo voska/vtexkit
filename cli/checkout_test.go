@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -206,6 +207,7 @@ func TestExitCodesCommandMatchesTable(t *testing.T) {
 // then serves the order that transaction produced.
 func confirmServer(t *testing.T, order string) *httptest.Server {
 	t.Helper()
+	cleared := false
 	orderForm := `{"orderFormId":"OF","items":` + oneItem + `,
 		"totalizers":[{"id":"Items","name":"Total dos Itens","value":15372}],
 		"shippingData":{"selectedAddresses":[{"addressId":"a1"}],
@@ -227,8 +229,15 @@ func confirmServer(t *testing.T, order string) *httptest.Server {
 				{"id":"FR-1","transactionId":"tx-9"}]}`))
 		case strings.Contains(p, "/api/oms/user/orders/"):
 			_, _ = w.Write([]byte(order))
+		case strings.HasSuffix(p, "/items/removeAll"):
+			cleared = true
+			_, _ = w.Write([]byte(`{}`))
 		default:
-			_, _ = w.Write([]byte(orderForm))
+			body := orderForm
+			if cleared {
+				body = strings.Replace(body, oneItem, `[]`, 1)
+			}
+			_, _ = w.Write([]byte(body))
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -298,6 +307,133 @@ func TestCheckoutConfirmedOrderReportsTheStoresOwnStatus(t *testing.T) {
 	}
 	if got["authorized"] != false {
 		t.Errorf("authorized = %v; nothing has settled on a pending pix order", got["authorized"])
+	}
+}
+
+func TestCheckoutResetsOnlyAnAcceptedOrdersCart(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		confirm    bool
+		dryRun     bool
+		card       bool
+		placeFails bool
+		resetFails bool
+		stillFull  bool
+		readFails  bool
+		wantReset  bool
+		wantErr    bool
+	}{
+		{name: "placed", confirm: true, wantReset: true},
+		{name: "preview"},
+		{name: "dry run", confirm: true, dryRun: true},
+		{name: "placement rejected", confirm: true, placeFails: true, wantErr: true},
+		{name: "payment submission fails", confirm: true, card: true, wantReset: true, wantErr: true},
+		{name: "payment and reset fail", confirm: true, card: true, resetFails: true, wantReset: true, wantErr: true},
+		{name: "reset rejected", confirm: true, resetFails: true, wantReset: true, wantErr: true},
+		{name: "reset did not empty cart", confirm: true, stillFull: true, wantReset: true, wantErr: true},
+		{name: "reset readback fails", confirm: true, readFails: true, wantReset: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			items, resets := oneItem, 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/vtexid/pub/authenticated/user":
+					_, _ = w.Write([]byte(`{"user":"test@example.invalid"}`))
+				case "/api/sessions":
+					_, _ = w.Write([]byte(`{"namespaces":{}}`))
+				case "/api/checkout/pub/orderForm/OF/attachments/shippingData",
+					"/api/checkout/pub/orderForm/OF/attachments/paymentData":
+					_, _ = w.Write([]byte(`{}`))
+				case "/api/checkout/pub/orderForm/OF/transaction":
+					if tc.placeFails {
+						http.Error(w, "placement rejected", http.StatusBadRequest)
+						return
+					}
+					// No merchant: saved-card submission fails before any gateway call.
+					_, _ = w.Write([]byte(`{"orderGroup":"1234"}`))
+				case "/api/oms/user/orders/1234":
+					_, _ = w.Write([]byte(pendingPixOrder))
+				case "/api/checkout/pub/orderForm/OF/items/removeAll":
+					resets++
+					if tc.resetFails {
+						http.Error(w, "reset rejected", http.StatusServiceUnavailable)
+						return
+					}
+					if !tc.stillFull {
+						items = `[]`
+					}
+					_, _ = w.Write([]byte(`{}`))
+				case "/api/checkout/pub/orderForm/OF/items":
+					var cartItems []vtex.OrderFormItem
+					if err := json.Unmarshal([]byte(items), &cartItems); err != nil {
+						t.Error(err)
+					}
+					cartItems = append(cartItems, vtex.OrderFormItem{ID: "NEXT", Quantity: 1, Seller: "1"})
+					body, err := json.Marshal(cartItems)
+					if err != nil {
+						t.Error(err)
+					}
+					items = string(body)
+					fallthrough
+				case "/api/checkout/pub/orderForm/OF":
+					if tc.readFails && resets > 0 {
+						http.Error(w, "read failed", http.StatusServiceUnavailable)
+						return
+					}
+					_, _ = fmt.Fprintf(w, `{"orderFormId":"OF","items":%s,
+						"totalizers":[{"id":"Items","value":15372}],
+						"shippingData":{"selectedAddresses":[{"addressId":"a1"}],
+						"logisticsInfo":[{"slas":[{"id":"Delivery"}]}]},
+						"paymentData":{"paymentSystems":%s,"availableAccounts":[{"paymentSystem":"2"}]}}`, items, pixOnly)
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			g := testGlobals(t, store.Store{Name: "fr", Account: "fr", BaseURL: srv.URL}, &CLI{JSON: true})
+			g.PersistOrderFormID("OF")
+			cmd := &CheckoutRunCmd{Payment: "pix", Window: -1, Confirm: tc.confirm, DryRun: tc.dryRun}
+			if tc.card {
+				cmd.CVV = "000"
+			}
+			var runErr error
+			captureStdout(t, func() { runErr = cmd.Run(g) })
+			if (runErr != nil) != tc.wantErr {
+				t.Fatalf("checkout error = %v, wantErr %v", runErr, tc.wantErr)
+			}
+			if (resets == 1) != tc.wantReset || resets > 1 {
+				t.Errorf("cart resets = %d, wantReset %v", resets, tc.wantReset)
+			}
+			if tc.resetFails || tc.stillFull || tc.readFails {
+				var typed *errfmt.Error
+				if !errors.As(runErr, &typed) || typed.Code != errfmt.ExitDomain ||
+					!strings.Contains(runErr.Error(), "1234") || !strings.Contains(runErr.Error(), "Do not re-run checkout") {
+					t.Errorf("cleanup failure must identify the placed order and forbid checkout retry: %v", runErr)
+				}
+				if tc.card && typed != nil && (!strings.Contains(typed.Error(), "merchant name missing") || !strings.Contains(typed.Error(), "remove all items: HTTP 503")) {
+					t.Errorf("rendered CLI error must retain both failures: %v", typed)
+				}
+			}
+			if tc.name == "placed" {
+				out := captureStdout(t, func() {
+					if err := (&CartShowCmd{}).Run(g); err != nil {
+						t.Fatal(err)
+					}
+				})
+				if strings.TrimSpace(out) != "[]" {
+					t.Fatalf("cart after checkout = %s, want []", out)
+				}
+				captureStdout(t, func() {
+					if err := (&CartAddCmd{SKU: "NEXT", Seller: "1", Qty: 1}).Run(g); err != nil {
+						t.Fatal(err)
+					}
+				})
+				if strings.Contains(items, `"134"`) || !strings.Contains(items, `"NEXT"`) {
+					t.Fatalf("next cart retained the old order: %s", items)
+				}
+			}
+		})
 	}
 }
 
